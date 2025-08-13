@@ -125,6 +125,57 @@
             font-size: 0.9rem;
             color: #6b7280;
         }
+        /* Admin Section Styles */
+        .admin-section {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+            text-align: left;
+            background-color: #fffbeb; /* Light yellow background for admin section */
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #fcd34d;
+        }
+        .admin-section button {
+            background-color: #ef4444; /* Red for delete */
+            margin-top: 10px;
+        }
+        .admin-section button:hover {
+            background-color: #dc2626;
+        }
+        /* Custom Modal Styles (for confirmation) */
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 1000; /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%; /* Full width */
+            height: 100%; /* Full height */
+            overflow: auto; /* Enable scroll if needed */
+            background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: auto;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            width: 80%;
+            max-width: 400px;
+            text-align: center;
+        }
+        .modal-buttons {
+            margin-top: 20px;
+        }
+        .modal-buttons button {
+            width: auto;
+            display: inline-block;
+            margin: 0 10px;
+            padding: 10px 20px;
+        }
     </style>
 </head>
 <body>
@@ -170,13 +221,37 @@
                 <p id="noReportDataMessage" class="no-data-message hidden">ยังไม่มีข้อมูลการลงทะเบียนสำหรับวันนี้</p>
             </div>
         </div>
+
+        <!-- ส่วนควบคุมสำหรับผู้ดูแลระบบ -->
+        <div class="admin-section">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Admin Control</h2>
+            <div class="mb-4 text-left">
+                <label for="adminPasswordInput" class="block text-gray-700 text-sm font-medium mb-2">รหัสผ่านผู้ดูแลระบบ:</label>
+                <input type="password" id="adminPasswordInput" placeholder="กรอกรหัสผ่านผู้ดูแลระบบ" class="focus:ring-2 focus:ring-yellow-300 focus:border-transparent">
+            </div>
+            <button id="resetQueuesButton" class="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1" disabled>
+                รีเซ็ตคิวทั้งหมดวันนี้
+            </button>
+        </div>
+    </div>
+
+    <!-- Custom Confirmation Modal -->
+    <div id="confirmationModal" class="modal">
+        <div class="modal-content">
+            <p class="text-lg font-semibold mb-4">คุณแน่ใจหรือไม่ที่จะรีเซ็ตคิวทั้งหมดสำหรับวันนี้?</p>
+            <p class="text-sm text-gray-600 mb-6">การดำเนินการนี้ไม่สามารถย้อนกลับได้ ข้อมูลการลงทะเบียนทั้งหมดของวันนี้จะถูกลบ.</p>
+            <div class="modal-buttons">
+                <button id="confirmResetButton" class="bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg">ยืนยัน</button>
+                <button id="cancelResetButton" class="bg-gray-400 hover:bg-gray-500 text-white py-2 px-4 rounded-lg">ยกเลิก</button>
+            </div>
+        </div>
     </div>
 
     <script type="module">
         // Import Firebase modules
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, query, where, addDoc, serverTimestamp, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, query, where, addDoc, serverTimestamp, getDocs, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js";
 
 
@@ -213,6 +288,18 @@
         const noReportDataMessage = document.getElementById('noReportDataMessage'); // No data message
         const reportLoadingIndicator = document.getElementById('reportLoadingIndicator'); // Report loading indicator
 
+        // Admin UI elements
+        const adminPasswordInput = document.getElementById('adminPasswordInput');
+        const resetQueuesButton = document.getElementById('resetQueuesButton');
+
+        // Modal elements
+        const confirmationModal = document.getElementById('confirmationModal');
+        const confirmResetButton = document.getElementById('confirmResetButton');
+        const cancelResetButton = document.getElementById('cancelResetButton');
+
+
+        // Admin password (IMPORTANT: For a real app, this should NOT be hardcoded client-side!)
+        const ADMIN_PASSWORD = "thisisME@1987"; // **** Change this to a strong, secret password ****
 
         let currentUserId = null;
         let authReady = false;
@@ -223,30 +310,27 @@
                 currentUserId = user.uid;
                 authReady = true;
                 console.log("Firebase authenticated. User ID:", currentUserId);
-                // Enable buttons when Firebase is ready
+                // Enable user-facing buttons when Firebase is ready
                 registerButton.disabled = false;
-                viewReportButton.disabled = false; // Enable report button
+                viewReportButton.disabled = false;
+                // Admin button enablement handled by password input
                 // After authentication, set up real-time queue data listener
                 setupQueueInfoListener();
             } else {
                 console.log("Firebase not authenticated. Signing in anonymously...");
                 try {
-                    // Use the initial auth token if provided (relevant for Canvas environment)
-                    // In a GitHub Pages context, this code won't be called
-                    // since __initial_auth_token is undefined, so it will always
-                    // proceed to signInAnonymously()
                     if (typeof __initial_auth_token !== 'undefined') {
                         await signInWithCustomToken(auth, __initial_auth_token);
                     } else {
-                        // Otherwise, sign in anonymously
                         await signInAnonymously(auth);
                     }
                 } catch (error) {
                     console.error("Error signing in anonymously:", error);
                     showError("เกิดข้อผิดพลาดในการเข้าสู่ระบบ โปรดลองอีกครั้ง");
-                    // Keep buttons disabled if authentication fails
+                    // Keep all buttons disabled if authentication fails
                     registerButton.disabled = true;
                     viewReportButton.disabled = true;
+                    resetQueuesButton.disabled = true; // Admin button also disabled
                 }
             }
         });
@@ -333,6 +417,20 @@
             } else {
                 reportLoadingIndicator.classList.add('hidden');
             }
+        }
+
+        /**
+         * Shows the custom confirmation modal.
+         */
+        function showConfirmationModal() {
+            confirmationModal.style.display = 'flex';
+        }
+
+        /**
+         * Hides the custom confirmation modal.
+         */
+        function hideConfirmationModal() {
+            confirmationModal.style.display = 'none';
         }
 
         // --- Firestore Data Operations ---
@@ -535,16 +633,89 @@
             }
         }
 
+        /**
+         * Resets all queues for the current day by deleting all registration documents
+         * and resetting the highest queue number.
+         * IMPORTANT: For a production app, this operation should be protected by
+         * a robust server-side authentication and authorization mechanism, not just a client-side password.
+         */
+        async function resetAllQueuesToday() {
+            if (!authReady) {
+                showError("ระบบยังไม่พร้อม โปรดรอสักครู่และลองอีกครั้ง");
+                return;
+            }
+
+            showLoading(true);
+            hideMessages();
+
+            const currentDate = getCurrentDate();
+            try {
+                // 1. Get all registrations for today
+                const q = query(
+                    collection(db, `artifacts/${appId}/public/data/queueRegistrations`),
+                    where("registrationDate", "==", currentDate)
+                );
+                const querySnapshot = await getDocs(q);
+
+                if (querySnapshot.empty) {
+                    showMessage("ไม่มีข้อมูลคิวให้รีเซ็ตสำหรับวันนี้");
+                    showLoading(false);
+                    fetchRegistrationReport(); // Refresh report even if empty
+                    return;
+                }
+
+                // 2. Delete all documents in a batch for efficiency
+                const batch = writeBatch(db);
+                querySnapshot.forEach((docSnap) => {
+                    batch.delete(docSnap.ref);
+                });
+                await batch.commit();
+
+                // 3. Reset highest queue number in metadata
+                const queueMetadataRef = doc(db, `artifacts/${appId}/public/data/queueMetadata`, 'currentQueue');
+                await setDoc(queueMetadataRef, {
+                    highestQueueNumber: 0,
+                    lastResetDate: currentDate // Update reset date to confirm it was reset today
+                }, { merge: true });
+
+                showMessage("รีเซ็ตคิวทั้งหมดสำหรับวันนี้สำเร็จแล้ว");
+                fetchRegistrationReport(); // Refresh report after successful reset
+            } catch (e) {
+                console.error("Error resetting queues:", e);
+                showError("เกิดข้อผิดพลาดในการรีเซ็ตคิว โปรดลองอีกครั้ง");
+            } finally {
+                showLoading(false);
+                hideConfirmationModal(); // Ensure modal is hidden
+            }
+        }
+
+
         // --- Event Listeners ---
         registerButton.addEventListener('click', registerQueue);
         viewReportButton.addEventListener('click', fetchRegistrationReport);
+
+        // Admin password input listener
+        adminPasswordInput.addEventListener('input', () => {
+            if (adminPasswordInput.value === ADMIN_PASSWORD && authReady) {
+                resetQueuesButton.disabled = false;
+            } else {
+                resetQueuesButton.disabled = true;
+            }
+        });
+
+        // Reset Queues Button listener (shows confirmation modal)
+        resetQueuesButton.addEventListener('click', showConfirmationModal);
+
+        // Modal button listeners
+        confirmResetButton.addEventListener('click', resetAllQueuesToday);
+        cancelResetButton.addEventListener('click', hideConfirmationModal);
 
         // Initial setup for displaying highest queue number after authentication is ready
         // The onAuthStateChanged listener will call setupQueueInfoListener when authentication is ready.
         // Also automatically fetch report when app loads and authentication is ready.
         onAuthStateChanged(auth, (user) => {
             if (user) {
-                // ... (existing code)
+                // ... (existing code from previous update)
                 fetchRegistrationReport(); // Fetch report when auth is ready
             }
         });
