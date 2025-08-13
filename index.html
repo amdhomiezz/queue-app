@@ -22,7 +22,7 @@
             padding: 30px;
             border-radius: 15px;
             box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-            max-width: 500px;
+            max-width: 800px; /* เพิ่มความกว้างสำหรับตารางรายงาน */
             width: 100%;
             text-align: center;
         }
@@ -86,6 +86,45 @@
             font-weight: 500;
             color: #047857;
         }
+        .report-section {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+            text-align: left;
+        }
+        .report-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        .report-table th, .report-table td {
+            border: 1px solid #e0e0e0;
+            padding: 10px;
+            text-align: left;
+        }
+        .report-table th {
+            background-color: #f8f8f8;
+            font-weight: 600;
+            color: #333;
+        }
+        .report-table tbody tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .report-table tbody tr:hover {
+            background-color: #f0f0f0;
+        }
+        .no-data-message {
+            text-align: center;
+            color: #6b7280;
+            margin-top: 20px;
+        }
+        .report-loading-indicator {
+            display: none; /* ซ่อนไว้ตามค่าเริ่มต้น */
+            text-align: center;
+            margin-top: 20px;
+            font-size: 0.9rem;
+            color: #6b7280;
+        }
     </style>
 </head>
 <body>
@@ -116,22 +155,36 @@
             <p>คิวล่าสุด: <span id="highestQueueNumberDisplay" class="font-bold text-green-700">--</span></p>
             <p class="text-sm mt-1">รีเซ็ตคิวทุกวันเวลา 00:00 น.</p>
         </div>
+
+        <!-- ส่วนสำหรับรายงานการลงทะเบียน -->
+        <div class="report-section">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">รายงานการลงทะเบียน</h2>
+            <button id="viewReportButton" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1" disabled>
+                ดูรายงานการลงทะเบียนวันนี้
+            </button>
+            <div id="reportLoadingIndicator" class="report-loading-indicator">
+                กำลังโหลดรายงาน...
+            </div>
+            <div id="registrationReport" class="mt-4">
+                <!-- ตารางรายงานจะถูกสร้างที่นี่ -->
+                <p id="noReportDataMessage" class="no-data-message hidden">ยังไม่มีข้อมูลการลงทะเบียนสำหรับวันนี้</p>
+            </div>
+        </div>
     </div>
 
     <script type="module">
-        // นำเข้าโมดูล Firebase
+        // Import Firebase modules
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, query, where, addDoc, serverTimestamp, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        // นำเข้าโมดูลสำหรับ Analytics ตามที่คุณระบุ
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js";
 
 
-        // การตั้งค่า Firebase (นำมาจากโปรเจกต์ Firebase ของคุณ)
-        // **สำคัญ:** รหัส appId ด้านล่างนี้ (const appId = ...) ใช้สำหรับกำหนดโครงสร้าง path ใน Firestore (เช่น artifacts/{appId}/...)
-        // ซึ่งไม่เหมือนกับ appId ที่อยู่ใน firebaseConfig ด้านล่างนี้ที่ใช้สำหรับกำหนดค่า Firebase SDK
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-
+        // Firebase configuration (from your Firebase project)
+        // IMPORTANT: The appId below (const appId = ...) is used for structuring paths in Firestore (e.g., artifacts/{appId}/...).
+        // This is different from the appId within firebaseConfig below, which is used to configure the Firebase SDK.
+        const appId = "default-app-id"; // You might want to hardcode this if not running in Canvas environment
+                                      // Or ensure your hosting environment provides __app_id
         const firebaseConfig = {
             apiKey: "AIzaSyA7OgbR00tGMjrQXAOtLUX34y8sXulK-5s",
             authDomain: "queue-app-72e53.firebaseapp.com",
@@ -142,62 +195,68 @@
             measurementId: "G-BHFP0TNYY3"
         };
 
-        // เริ่มต้นแอป Firebase
+        // Initialize Firebase
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const auth = getAuth(app);
-        // เริ่มต้น Firebase Analytics
-        const analytics = getAnalytics(app); // หากไม่ต้องการใช้ Analytics สามารถลบบรรทัดนี้ได้
+        const analytics = getAnalytics(app); // If you don't need Analytics, you can remove this line
 
-        // องค์ประกอบ UI
+        // UI elements
         const studentIdInput = document.getElementById('studentIdInput');
         const registerButton = document.getElementById('registerButton');
+        const viewReportButton = document.getElementById('viewReportButton'); // New report button
         const messageDisplay = document.getElementById('messageDisplay');
         const errorDisplay = document.getElementById('errorDisplay');
         const loadingIndicator = document.getElementById('loadingIndicator');
         const highestQueueNumberDisplay = document.getElementById('highestQueueNumberDisplay');
+        const registrationReportDiv = document.getElementById('registrationReport'); // Report display div
+        const noReportDataMessage = document.getElementById('noReportDataMessage'); // No data message
+        const reportLoadingIndicator = document.getElementById('reportLoadingIndicator'); // Report loading indicator
+
 
         let currentUserId = null;
         let authReady = false;
 
-        // --- การยืนยันตัวตน Firebase ---
+        // --- Firebase Authentication ---
         onAuthStateChanged(auth, async (user) => {
             if (user) {
                 currentUserId = user.uid;
                 authReady = true;
                 console.log("Firebase authenticated. User ID:", currentUserId);
-                // **เปิดใช้งานปุ่มเมื่อ Firebase พร้อมใช้งาน**
+                // Enable buttons when Firebase is ready
                 registerButton.disabled = false;
-                // หลังจากยืนยันตัวตนแล้ว ตั้งค่าตัวฟังการเปลี่ยนแปลงข้อมูลคิวแบบเรียลไทม์
+                viewReportButton.disabled = false; // Enable report button
+                // After authentication, set up real-time queue data listener
                 setupQueueInfoListener();
             } else {
                 console.log("Firebase not authenticated. Signing in anonymously...");
                 try {
-                    // ใช้โทเค็นการยืนยันตัวตนเริ่มต้นที่จัดเตรียมไว้ หากมี
-                    // ในบริบทของ GitHub Pages โค้ดนี้จะไม่ถูกเรียกใช้
-                    // เนื่องจากไม่มี __initial_auth_token
-                    // ดังนั้นจะเข้าสู่ signInAnonymously() เสมอ
+                    // Use the initial auth token if provided (relevant for Canvas environment)
+                    // In a GitHub Pages context, this code won't be called
+                    // since __initial_auth_token is undefined, so it will always
+                    // proceed to signInAnonymously()
                     if (typeof __initial_auth_token !== 'undefined') {
                         await signInWithCustomToken(auth, __initial_auth_token);
                     } else {
-                        // มิฉะนั้น เข้าสู่ระบบแบบไม่ระบุตัวตน
+                        // Otherwise, sign in anonymously
                         await signInAnonymously(auth);
                     }
                 } catch (error) {
                     console.error("Error signing in anonymously:", error);
                     showError("เกิดข้อผิดพลาดในการเข้าสู่ระบบ โปรดลองอีกครั้ง");
-                    // **ปิดใช้งานปุ่มไว้หากเกิดข้อผิดพลาดในการยืนยันตัวตน**
+                    // Keep buttons disabled if authentication fails
                     registerButton.disabled = true;
+                    viewReportButton.disabled = true;
                 }
             }
         });
 
-        // --- ฟังก์ชันยูทิลิตี้ ---
+        // --- Utility Functions ---
 
         /**
-         * สร้าง ID อุปกรณ์ที่ไม่ซ้ำกันและเก็บไว้ใน localStorage
-         * รวมกับ appId เพื่อความไม่ซ้ำกันที่ดีขึ้นในแอป/ผู้ใช้ที่แตกต่างกัน
-         * @returns {string} ID อุปกรณ์ที่ไม่ซ้ำกัน
+         * Generates a unique device ID and stores it in localStorage.
+         * Includes appId for better uniqueness across different apps/users.
+         * @returns {string} Unique device ID.
          */
         function getDeviceId() {
             let deviceId = localStorage.getItem(`queueAppDeviceId_${appId}`);
@@ -209,8 +268,8 @@
         }
 
         /**
-         * รับวันที่ปัจจุบันในรูปแบบ YYYY-MM-DD
-         * @returns {string} สตริงวันที่ปัจจุบัน
+         * Gets the current date in YYYY-MM-DD format.
+         * @returns {string} Current date string.
          */
         function getCurrentDate() {
             const today = new Date();
@@ -221,29 +280,29 @@
         }
 
         /**
-         * แสดงข้อความความสำเร็จแก่ผู้ใช้
-         * @param {string} message ข้อความที่จะแสดง
+         * Displays a success message to the user.
+         * @param {string} message Message to display.
          */
         function showMessage(message) {
             messageDisplay.textContent = message;
             messageDisplay.classList.remove('hidden', 'error-message');
             messageDisplay.classList.add('message-box');
-            errorDisplay.classList.add('hidden'); // ซ่อนข้อความข้อผิดพลาดใดๆ
+            errorDisplay.classList.add('hidden'); // Hide any error messages
         }
 
         /**
-         * แสดงข้อความข้อผิดพลาดแก่ผู้ใช้
-         * @param {string} message ข้อความข้อผิดพลาดที่จะแสดง
+         * Displays an error message to the user.
+         * @param {string} message Error message to display.
          */
         function showError(message) {
             errorDisplay.textContent = message;
             errorDisplay.classList.remove('hidden', 'message-box');
             errorDisplay.classList.add('error-message');
-            messageDisplay.classList.add('hidden'); // ซ่อนข้อความความสำเร็จใดๆ
+            messageDisplay.classList.add('hidden'); // Hide any success messages
         }
 
         /**
-         * ซ่อนข้อความทั้งหมด
+         * Hides all messages.
          */
         function hideMessages() {
             messageDisplay.classList.add('hidden');
@@ -251,8 +310,8 @@
         }
 
         /**
-         * แสดงหรือซ่อนตัวบ่งชี้การโหลด
-         * @param {boolean} show True เพื่อแสดง, False เพื่อซ่อน
+         * Shows or hides the main loading indicator.
+         * @param {boolean} show True to show, False to hide.
          */
         function showLoading(show) {
             if (show) {
@@ -262,14 +321,28 @@
             }
         }
 
-        // --- การทำงานกับข้อมูล Firestore ---
+        /**
+         * Shows or hides the report loading indicator.
+         * @param {boolean} show True to show, False to hide.
+         */
+        function showReportLoading(show) {
+            if (show) {
+                reportLoadingIndicator.classList.remove('hidden');
+                registrationReportDiv.innerHTML = ''; // Clear existing report
+                noReportDataMessage.classList.add('hidden'); // Hide no data message
+            } else {
+                reportLoadingIndicator.classList.add('hidden');
+            }
+        }
+
+        // --- Firestore Data Operations ---
 
         /**
-         * ตั้งค่าตัวฟังการเปลี่ยนแปลงข้อมูลคิวปัจจุบันแบบเรียลไทม์
+         * Sets up a real-time listener for current queue metadata.
          */
         function setupQueueInfoListener() {
             if (!authReady) {
-                console.warn("การยืนยันตัวตนยังไม่พร้อมสำหรับการตั้งค่าตัวฟัง.");
+                console.warn("Authentication not ready for listener setup.");
                 return;
             }
 
@@ -279,8 +352,8 @@
                     const data = docSnap.data();
                     highestQueueNumberDisplay.textContent = data.highestQueueNumber || 0;
                 } else {
-                    highestQueueNumberDisplay.textContent = 0; // ยังไม่มีข้อมูล
-                    // เริ่มต้นข้อมูลหากยังไม่มี
+                    highestQueueNumberDisplay.textContent = 0; // No data yet
+                    // Initialize data if not present
                     setDoc(queueMetadataRef, {
                         highestQueueNumber: 0,
                         lastResetDate: getCurrentDate()
@@ -293,10 +366,10 @@
         }
 
         /**
-         * จัดการกระบวนการลงทะเบียนคิว
+         * Handles the queue registration process.
          */
         async function registerQueue() {
-            // โค้ดนี้ควรจะไม่ถูกเรียกเลยหากปุ่มถูก disabled แต่มีไว้เผื่อเป็น fallback
+            // This code should ideally not be called if the button is disabled, but serves as a fallback
             if (!authReady) {
                 showError("ระบบยังไม่พร้อม โปรดรอสักครู่และลองอีกครั้ง");
                 showLoading(false);
@@ -317,7 +390,7 @@
             const currentDate = getCurrentDate();
             const lastRegistrationDate = localStorage.getItem(`lastRegistrationDate_${appId}_${deviceId}`);
 
-            // ตรวจสอบว่าลงทะเบียนวันนี้แล้วหรือไม่จากอุปกรณ์นี้โดยใช้ localStorage
+            // Check if already registered today from this device using localStorage
             if (lastRegistrationDate === currentDate) {
                 showError("คุณได้ลงทะเบียนคิวไปแล้วสำหรับวันนี้จากอุปกรณ์นี้ กรุณาลองใหม่ในวันพรุ่งนี้");
                 showLoading(false);
@@ -337,12 +410,12 @@
                     lastResetDate = data.lastResetDate;
                 }
 
-                // หากเป็นวันใหม่ ให้รีเซ็ตหมายเลขคิว
+                // If it's a new day, reset the queue number
                 if (lastResetDate !== currentDate) {
-                    highestQueueNumber = 0; // รีเซ็ตสำหรับวันใหม่
+                    highestQueueNumber = 0; // Reset for the new day
                 }
 
-                // เพิ่มหมายเลขคิว, สูงสุด 170
+                // Increment queue number, max 170
                 let newQueueNumber = highestQueueNumber + 1;
                 if (newQueueNumber > 170) {
                     showError("คิวเต็มแล้วสำหรับวันนี้ โปรดลองใหม่ในวันพรุ่งนี้");
@@ -350,7 +423,7 @@
                     return;
                 }
 
-                // ก่อนที่จะกำหนดคิว, ตรวจสอบอย่างรวดเร็วว่ารหัสนักศึกษานี้ได้ลงทะเบียนวันนี้แล้วหรือไม่
+                // Before assigning a queue, quickly check if this student ID is already registered today
                 const q = query(
                     collection(db, `artifacts/${appId}/public/data/queueRegistrations`),
                     where("studentId", "==", studentId),
@@ -363,26 +436,28 @@
                     return;
                 }
 
-                // อัปเดตหมายเลขคิวสูงสุดและวันที่รีเซ็ตล่าสุดใน Firestore
+                // Update the highest queue number and last reset date in Firestore
                 await setDoc(queueMetadataRef, {
                     highestQueueNumber: newQueueNumber,
                     lastResetDate: currentDate
-                }, { merge: true }); // ใช้ merge เพื่อหลีกเลี่ยงการเขียนทับฟิลด์อื่น ๆ
+                }, { merge: true }); // Use merge to avoid overwriting other fields
 
-                // เพิ่มบันทึกการลงทะเบียนใหม่
+                // Add new registration record
                 await addDoc(collection(db, `artifacts/${appId}/public/data/queueRegistrations`), {
                     studentId: studentId,
                     queueNumber: newQueueNumber,
                     registrationDate: currentDate,
                     deviceId: deviceId,
-                    timestamp: serverTimestamp() // เพิ่ม timestamp ที่สร้างโดยเซิร์ฟเวอร์
+                    timestamp: serverTimestamp() // Add server-generated timestamp
                 });
 
-                // อัปเดต localStorage เพื่อป้องกันการลงทะเบียนซ้ำในวันนี้จากอุปกรณ์นี้
+                // Update localStorage to prevent duplicate registration today from this device
                 localStorage.setItem(`lastRegistrationDate_${appId}_${deviceId}`, currentDate);
 
                 showMessage(`คุณได้รับคิวหมายเลข: ${newQueueNumber}`);
-                studentIdInput.value = ''; // ล้างข้อมูลในช่องกรอก
+                studentIdInput.value = ''; // Clear input field
+                // Automatically refresh report after successful registration
+                fetchRegistrationReport();
             } catch (e) {
                 console.error("Error registering queue:", e);
                 showError("เกิดข้อผิดพลาดในการลงทะเบียนคิว โปรดลองอีกครั้ง");
@@ -391,13 +466,88 @@
             }
         }
 
-        // --- ตัวฟังเหตุการณ์ ---
-        registerButton.addEventListener('click', registerQueue);
+        /**
+         * Fetches and displays the registration report for the current day.
+         */
+        async function fetchRegistrationReport() {
+            if (!authReady) {
+                showError("ระบบยังไม่พร้อม โปรดรอสักครู่และลองอีกครั้ง");
+                return;
+            }
 
-        // การตั้งค่าเริ่มต้นสำหรับการแสดงหมายเลขคิวสูงสุดหลังจากยืนยันตัวตนพร้อมแล้ว
-        // ตัวฟัง onAuthStateChanged จะเรียก setupQueueInfoListener เมื่อการยืนยันตัวตนพร้อม
+            showReportLoading(true);
+            noReportDataMessage.classList.add('hidden'); // Hide "no data" message initially
+
+            const currentDate = getCurrentDate();
+            try {
+                const q = query(
+                    collection(db, `artifacts/${appId}/public/data/queueRegistrations`),
+                    where("registrationDate", "==", currentDate)
+                );
+                const querySnapshot = await getDocs(q);
+
+                const registrations = [];
+                querySnapshot.forEach((doc) => {
+                    const data = doc.data();
+                    registrations.push(data);
+                });
+
+                // Sort registrations by queueNumber
+                registrations.sort((a, b) => a.queueNumber - b.queueNumber);
+
+                if (registrations.length > 0) {
+                    let tableHtml = `
+                        <table class="report-table">
+                            <thead>
+                                <tr>
+                                    <th>คิวที่</th>
+                                    <th>รหัสนักศึกษา</th>
+                                    <th>เวลาลงทะเบียน</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                    `;
+                    registrations.forEach(reg => {
+                        const registrationTime = reg.timestamp && reg.timestamp.toDate ?
+                            reg.timestamp.toDate().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'N/A';
+                        tableHtml += `
+                            <tr>
+                                <td>${reg.queueNumber}</td>
+                                <td>${reg.studentId}</td>
+                                <td>${registrationTime}</td>
+                            </tr>
+                        `;
+                    });
+                    tableHtml += `
+                            </tbody>
+                        </table>
+                    `;
+                    registrationReportDiv.innerHTML = tableHtml;
+                } else {
+                    registrationReportDiv.innerHTML = '';
+                    noReportDataMessage.classList.remove('hidden'); // Show "no data" message
+                }
+            } catch (e) {
+                console.error("Error fetching registration report:", e);
+                showError("เกิดข้อผิดพลาดในการดึงรายงานการลงทะเบียน");
+            } finally {
+                showReportLoading(false);
+            }
+        }
+
+        // --- Event Listeners ---
+        registerButton.addEventListener('click', registerQueue);
+        viewReportButton.addEventListener('click', fetchRegistrationReport);
+
+        // Initial setup for displaying highest queue number after authentication is ready
+        // The onAuthStateChanged listener will call setupQueueInfoListener when authentication is ready.
+        // Also automatically fetch report when app loads and authentication is ready.
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                // ... (existing code)
+                fetchRegistrationReport(); // Fetch report when auth is ready
+            }
+        });
     </script>
 </body>
 </html>
-
-
