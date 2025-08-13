@@ -45,6 +45,11 @@
         button:hover {
             background-color: #45a049;
         }
+        /* เพิ่มสไตล์สำหรับปุ่มที่ถูกปิดใช้งาน */
+        button:disabled {
+            background-color: #a0a0a0;
+            cursor: not-allowed;
+        }
         .message-box {
             background-color: #f2f7ff;
             color: #3b82f6;
@@ -93,7 +98,7 @@
             <input type="text" id="studentIdInput" placeholder="กรอกรหัสนักศึกษาของคุณ" class="focus:ring-2 focus:ring-green-300 focus:border-transparent">
         </div>
 
-        <button id="registerButton" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1">
+        <button id="registerButton" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1" **disabled**>
             ลงทะเบียนคิว
         </button>
 
@@ -145,6 +150,8 @@
                 currentUserId = user.uid;
                 authReady = true;
                 console.log("Firebase authenticated. User ID:", currentUserId);
+                // **เปิดใช้งานปุ่มเมื่อ Firebase พร้อมใช้งาน**
+                registerButton.disabled = false;
                 // หลังจากยืนยันตัวตนแล้ว ตั้งค่าตัวฟังการเปลี่ยนแปลงข้อมูลคิวแบบเรียลไทม์
                 setupQueueInfoListener();
             } else {
@@ -160,6 +167,8 @@
                 } catch (error) {
                     console.error("Error signing in anonymously:", error);
                     showError("เกิดข้อผิดพลาดในการเข้าสู่ระบบ โปรดลองอีกครั้ง");
+                    // **ปิดใช้งานปุ่มไว้หากเกิดข้อผิดพลาดในการยืนยันตัวตน**
+                    registerButton.disabled = true;
                 }
             }
         });
@@ -268,8 +277,10 @@
          * จัดการกระบวนการลงทะเบียนคิว
          */
         async function registerQueue() {
+            // โค้ดนี้ควรจะไม่ถูกเรียกเลยหากปุ่มถูก disabled แต่มีไว้เผื่อเป็น fallback
             if (!authReady) {
                 showError("ระบบยังไม่พร้อม โปรดรอสักครู่และลองอีกครั้ง");
+                showLoading(false);
                 return;
             }
 
