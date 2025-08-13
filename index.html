@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบคิวเข้าห้องเรียน</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start; /* จัดให้อยู่ด้านบนเพื่อเหลือพื้นที่สำหรับการเลื่อน */
+            min-height: 100vh;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+        }
+        input, button {
+            border-radius: 8px;
+            padding: 12px 18px;
+            font-size: 1rem;
+            width: 100%;
+            box-sizing: border-box;
+            margin-bottom: 15px;
+            border: 1px solid #e0e0e0;
+        }
+        button {
+            background-color: #4CAF50; /* สีเขียว */
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            font-weight: 600;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .message-box {
+            background-color: #f2f7ff;
+            color: #3b82f6;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            font-size: 1.1rem;
+            font-weight: 500;
+            text-align: left;
+        }
+        .error-message {
+            background-color: #fee2e2;
+            color: #ef4444;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            font-size: 1.1rem;
+            font-weight: 500;
+            text-align: left;
+        }
+        .loading-indicator {
+            display: none; /* ซ่อนไว้ตามค่าเริ่มต้น */
+            margin-top: 20px;
+            font-size: 0.9rem;
+            color: #6b7280;
+        }
+        .current-queue-info {
+            margin-top: 25px;
+            padding: 20px;
+            background-color: #ecfdf5;
+            border: 1px solid #d1fae5;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            font-weight: 500;
+            color: #047857;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-3xl font-bold text-gray-800 mb-6">ระบบคิวเข้าห้องเรียน</h1>
+        <p class="text-gray-600 mb-6">ลงทะเบียนเพื่อรับคิวเข้าห้องเรียนของคุณ</p>
+
+        <div class="mb-4 text-left">
+            <label for="studentIdInput" class="block text-gray-700 text-sm font-medium mb-2">รหัสนักศึกษา:</label>
+            <input type="text" id="studentIdInput" placeholder="กรอกรหัสนักศึกษาของคุณ" class="focus:ring-2 focus:ring-green-300 focus:border-transparent">
+        </div>
+
+        <button id="registerButton" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1">
+            ลงทะเบียนคิว
+        </button>
+
+        <div id="messageDisplay" class="message-box hidden">
+            <!-- ข้อความจะแสดงที่นี่ -->
+        </div>
+        <div id="errorDisplay" class="error-message hidden">
+            <!-- ข้อผิดพลาดจะแสดงที่นี่ -->
+        </div>
+        <div id="loadingIndicator" class="loading-indicator">
+            กำลังประมวลผล... โปรดรอสักครู่
+        </div>
+
+        <div id="currentQueueInfo" class="current-queue-info">
+            <p>คิวล่าสุด: <span id="highestQueueNumberDisplay" class="font-bold text-green-700">--</span></p>
+            <p class="text-sm mt-1">รีเซ็ตคิวทุกวันเวลา 00:00 น.</p>
+        </div>
+    </div>
+
+    <script type="module">
+        // นำเข้าโมดูล Firebase
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, query, where, addDoc, serverTimestamp, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // การตั้งค่า Firebase (จากสภาพแวดล้อม)
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+
+        // เริ่มต้นแอป Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        // องค์ประกอบ UI
+        const studentIdInput = document.getElementById('studentIdInput');
+        const registerButton = document.getElementById('registerButton');
+        const messageDisplay = document.getElementById('messageDisplay');
+        const errorDisplay = document.getElementById('errorDisplay');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const highestQueueNumberDisplay = document.getElementById('highestQueueNumberDisplay');
+
+        let currentUserId = null;
+        let authReady = false;
+
+        // --- การยืนยันตัวตน Firebase ---
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                currentUserId = user.uid;
+                authReady = true;
+                console.log("Firebase authenticated. User ID:", currentUserId);
+                // หลังจากยืนยันตัวตนแล้ว ตั้งค่าตัวฟังการเปลี่ยนแปลงข้อมูลคิวแบบเรียลไทม์
+                setupQueueInfoListener();
+            } else {
+                console.log("Firebase not authenticated. Signing in anonymously...");
+                try {
+                    // ใช้โทเค็นการยืนยันตัวตนเริ่มต้นที่จัดเตรียมไว้ หากมี
+                    if (typeof __initial_auth_token !== 'undefined') {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
+                        // มิฉะนั้น เข้าสู่ระบบแบบไม่ระบุตัวตน
+                        await signInAnonymously(auth);
+                    }
+                } catch (error) {
+                    console.error("Error signing in anonymously:", error);
+                    showError("เกิดข้อผิดพลาดในการเข้าสู่ระบบ โปรดลองอีกครั้ง");
+                }
+            }
+        });
+
+        // --- ฟังก์ชันยูทิลิตี้ ---
+
+        /**
+         * สร้าง ID อุปกรณ์ที่ไม่ซ้ำกันและเก็บไว้ใน localStorage
+         * รวมกับ appId เพื่อความไม่ซ้ำกันที่ดีขึ้นในแอป/ผู้ใช้ที่แตกต่างกัน
+         * @returns {string} ID อุปกรณ์ที่ไม่ซ้ำกัน
+         */
+        function getDeviceId() {
+            let deviceId = localStorage.getItem(`queueAppDeviceId_${appId}`);
+            if (!deviceId) {
+                deviceId = crypto.randomUUID();
+                localStorage.setItem(`queueAppDeviceId_${appId}`, deviceId);
+            }
+            return deviceId;
+        }
+
+        /**
+         * รับวันที่ปัจจุบันในรูปแบบ YYYY-MM-DD
+         * @returns {string} สตริงวันที่ปัจจุบัน
+         */
+        function getCurrentDate() {
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        /**
+         * แสดงข้อความความสำเร็จแก่ผู้ใช้
+         * @param {string} message ข้อความที่จะแสดง
+         */
+        function showMessage(message) {
+            messageDisplay.textContent = message;
+            messageDisplay.classList.remove('hidden', 'error-message');
+            messageDisplay.classList.add('message-box');
+            errorDisplay.classList.add('hidden'); // ซ่อนข้อความข้อผิดพลาดใดๆ
+        }
+
+        /**
+         * แสดงข้อความข้อผิดพลาดแก่ผู้ใช้
+         * @param {string} message ข้อความข้อผิดพลาดที่จะแสดง
+         */
+        function showError(message) {
+            errorDisplay.textContent = message;
+            errorDisplay.classList.remove('hidden', 'message-box');
+            errorDisplay.classList.add('error-message');
+            messageDisplay.classList.add('hidden'); // ซ่อนข้อความความสำเร็จใดๆ
+        }
+
+        /**
+         * ซ่อนข้อความทั้งหมด
+         */
+        function hideMessages() {
+            messageDisplay.classList.add('hidden');
+            errorDisplay.classList.add('hidden');
+        }
+
+        /**
+         * แสดงหรือซ่อนตัวบ่งชี้การโหลด
+         * @param {boolean} show True เพื่อแสดง, False เพื่อซ่อน
+         */
+        function showLoading(show) {
+            if (show) {
+                loadingIndicator.classList.remove('hidden');
+            } else {
+                loadingIndicator.classList.add('hidden');
+            }
+        }
+
+        // --- การทำงานกับข้อมูล Firestore ---
+
+        /**
+         * ตั้งค่าตัวฟังการเปลี่ยนแปลงข้อมูลคิวปัจจุบันแบบเรียลไทม์
+         */
+        function setupQueueInfoListener() {
+            if (!authReady) {
+                console.warn("การยืนยันตัวตนยังไม่พร้อมสำหรับการตั้งค่าตัวฟัง.");
+                return;
+            }
+
+            const queueMetadataRef = doc(db, `artifacts/${appId}/public/data/queueMetadata`, 'currentQueue');
+            onSnapshot(queueMetadataRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    highestQueueNumberDisplay.textContent = data.highestQueueNumber || 0;
+                } else {
+                    highestQueueNumberDisplay.textContent = 0; // ยังไม่มีข้อมูล
+                    // เริ่มต้นข้อมูลหากยังไม่มี
+                    setDoc(queueMetadataRef, {
+                        highestQueueNumber: 0,
+                        lastResetDate: getCurrentDate()
+                    }, { merge: true }).catch(e => console.error("Error initializing queue metadata:", e));
+                }
+            }, (error) => {
+                console.error("Error listening to queue metadata:", error);
+                showError("ไม่สามารถดึงข้อมูลคิวล่าสุดได้");
+            });
+        }
+
+        /**
+         * จัดการกระบวนการลงทะเบียนคิว
+         */
+        async function registerQueue() {
+            if (!authReady) {
+                showError("ระบบยังไม่พร้อม โปรดรอสักครู่และลองอีกครั้ง");
+                return;
+            }
+
+            hideMessages();
+            showLoading(true);
+
+            const studentId = studentIdInput.value.trim();
+            if (!studentId) {
+                showError("กรุณากรอกรหัสนักศึกษาของคุณ");
+                showLoading(false);
+                return;
+            }
+
+            const deviceId = getDeviceId();
+            const currentDate = getCurrentDate();
+            const lastRegistrationDate = localStorage.getItem(`lastRegistrationDate_${appId}_${deviceId}`);
+
+            // ตรวจสอบว่าลงทะเบียนวันนี้แล้วหรือไม่จากอุปกรณ์นี้โดยใช้ localStorage
+            if (lastRegistrationDate === currentDate) {
+                showError("คุณได้ลงทะเบียนคิวไปแล้วสำหรับวันนี้จากอุปกรณ์นี้ กรุณาลองใหม่ในวันพรุ่งนี้");
+                showLoading(false);
+                return;
+            }
+
+            try {
+                const queueMetadataRef = doc(db, `artifacts/${appId}/public/data/queueMetadata`, 'currentQueue');
+                const queueMetadataSnap = await getDoc(queueMetadataRef);
+
+                let highestQueueNumber = 0;
+                let lastResetDate = null;
+
+                if (queueMetadataSnap.exists()) {
+                    const data = queueMetadataSnap.data();
+                    highestQueueNumber = data.highestQueueNumber || 0;
+                    lastResetDate = data.lastResetDate;
+                }
+
+                // หากเป็นวันใหม่ ให้รีเซ็ตหมายเลขคิว
+                if (lastResetDate !== currentDate) {
+                    highestQueueNumber = 0; // รีเซ็ตสำหรับวันใหม่
+                }
+
+                // เพิ่มหมายเลขคิว, สูงสุด 170
+                let newQueueNumber = highestQueueNumber + 1;
+                if (newQueueNumber > 170) {
+                    showError("คิวเต็มแล้วสำหรับวันนี้ โปรดลองใหม่ในวันพรุ่งนี้");
+                    showLoading(false);
+                    return;
+                }
+
+                // ก่อนที่จะกำหนดคิว, ตรวจสอบอย่างรวดเร็วว่ารหัสนักศึกษานี้ได้ลงทะเบียนวันนี้แล้วหรือไม่
+                const q = query(
+                    collection(db, `artifacts/${appId}/public/data/queueRegistrations`),
+                    where("studentId", "==", studentId),
+                    where("registrationDate", "==", currentDate)
+                );
+                const querySnapshot = await getDocs(q);
+                if (!querySnapshot.empty) {
+                    showError("รหัสนักศึกษานี้ได้ลงทะเบียนคิวไปแล้วสำหรับวันนี้");
+                    showLoading(false);
+                    return;
+                }
+
+                // อัปเดตหมายเลขคิวสูงสุดและวันที่รีเซ็ตล่าสุดใน Firestore
+                await setDoc(queueMetadataRef, {
+                    highestQueueNumber: newQueueNumber,
+                    lastResetDate: currentDate
+                }, { merge: true }); // ใช้ merge เพื่อหลีกเลี่ยงการเขียนทับฟิลด์อื่น ๆ
+
+                // เพิ่มบันทึกการลงทะเบียนใหม่
+                await addDoc(collection(db, `artifacts/${appId}/public/data/queueRegistrations`), {
+                    studentId: studentId,
+                    queueNumber: newQueueNumber,
+                    registrationDate: currentDate,
+                    deviceId: deviceId,
+                    timestamp: serverTimestamp() // เพิ่ม timestamp ที่สร้างโดยเซิร์ฟเวอร์
+                });
+
+                // อัปเดต localStorage เพื่อป้องกันการลงทะเบียนซ้ำในวันนี้จากอุปกรณ์นี้
+                localStorage.setItem(`lastRegistrationDate_${appId}_${deviceId}`, currentDate);
+
+                showMessage(`คุณได้รับคิวหมายเลข: ${newQueueNumber}`);
+                studentIdInput.value = ''; // ล้างข้อมูลในช่องกรอก
+            } catch (e) {
+                console.error("Error registering queue:", e);
+                showError("เกิดข้อผิดพลาดในการลงทะเบียนคิว โปรดลองอีกครั้ง");
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // --- ตัวฟังเหตุการณ์ ---
+        registerButton.addEventListener('click', registerQueue);
+
+        // การตั้งค่าเริ่มต้นสำหรับการแสดงหมายเลขคิวสูงสุดหลังจากยืนยันตัวตนพร้อมแล้ว
+        // ตัวฟัง onAuthStateChanged จะเรียก setupQueueInfoListener เมื่อการยืนยันตัวตนพร้อม
+    </script>
+</body>
+</html>
