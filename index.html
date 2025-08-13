@@ -225,7 +225,7 @@
         }
 
 
-        /* Styles for the floating trash icon (toggle button) */
+        /* Styles for the floating toggle button (now a question mark) */
         #fixedResetButtonContainer {
             position: fixed;
             bottom: 20px;
@@ -233,7 +233,7 @@
             z-index: 999; /* Ensures button is above the panel when both are visible */
         }
 
-        #toggleAdminPanelButton { /* Renamed from resetQueuesButton to reflect its new role */
+        #toggleAdminPanelButton {
             width: 48px;
             height: 48px;
             border-radius: 50%;
@@ -242,21 +242,25 @@
             justify-content: center;
             align-items: center;
             font-size: 1.25rem;
-            background-color: #d1d5db; /* Subtle gray */
-            color: #fff;
+            background-color: #e0e0e0; /* A very light gray for the '?' icon */
+            color: #6b7280; /* Darker gray for the question mark itself */
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
             transition: background-color 0.3s ease, transform 0.2s ease, opacity 0.3s ease;
             opacity: 0; /* Initially hidden */
             pointer-events: none; /* Make it unclickable when invisible */
         }
 
-        /* Make the trash button visible on body hover (or html hover for full page) */
+        /* Make the toggle button visible on body hover (or html hover for full page) */
         body:hover #toggleAdminPanelButton {
             opacity: 1;
             pointer-events: auto; /* Make it clickable when visible */
         }
+        #toggleAdminPanelButton:hover {
+             background-color: #c9c9c9; /* Slightly darker gray on hover for '?' */
+             transform: translateY(-2px);
+        }
 
-        /* If the admin panel is open, the trash button should remain visible and clickable */
+        /* If the admin panel is open, the toggle button should remain visible and clickable */
         #adminPanelContainer.admin-panel-visible + #fixedResetButtonContainer #toggleAdminPanelButton {
             opacity: 1;
             pointer-events: auto;
@@ -295,9 +299,14 @@
         <!-- ส่วนสำหรับรายงานการลงทะเบียน -->
         <div class="report-section">
             <h2 class="text-2xl font-bold text-gray-800 mb-4">รายงานการลงทะเบียน</h2>
-            <button id="viewReportButton" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1" disabled>
-                ดูรายงานการลงทะเบียนวันนี้
-            </button>
+            <div class="flex flex-wrap gap-3 mb-4 justify-center">
+                <button id="viewReportButton" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1" disabled>
+                    ดูรายงานการลงทะเบียนวันนี้
+                </button>
+                <button id="exportReportButton" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1" disabled>
+                    บันทึกรายงานเป็น CSV
+                </button>
+            </div>
             <div id="reportLoadingIndicator" class="report-loading-indicator">
                 กำลังโหลดรายงาน...
             </div>
@@ -308,11 +317,9 @@
         </div>
 
         <!-- ส่วนควบคุมสำหรับผู้ดูแลระบบ (Placeholder for previous admin section) -->
-        <!-- Admin Section content is now moved to the floating admin panel -->
+        <!-- This section is now just a title for context, the input and button are in the floating panel -->
         <div class="admin-section">
-            <h2 class="text-2xl font-bold text-gray-800 mb-4">Admin Control (เพื่อป้อนรหัสผ่านสำหรับปุ่มลบ)</h2>
-            <!-- This section primarily serves as a placeholder for the input field to be placed,
-                 and its styling is minimal. The floating admin panel handles the main interaction. -->
+            <!-- Removed the h2 title "Admin Control" -->
         </div>
     </div>
 
@@ -330,15 +337,15 @@
 
     <!-- Floating Admin Panel (initially hidden) -->
     <div id="adminPanelContainer">
-        <h3 class="text-lg font-bold text-gray-800 mb-2">Admin</h3>
+        <!-- Removed the h3 title "Admin" -->
         <input type="password" id="adminPasswordInput" placeholder="รหัสผ่าน" class="admin-password-input focus:ring-2 focus:ring-yellow-300 focus:border-transparent">
         <button id="executeResetButton" class="admin-execute-reset-button" disabled>รีเซ็ต</button>
     </div>
 
-    <!-- Floating Reset Button (Trash Icon) -->
+    <!-- Floating Toggle Button (Question Mark Icon) -->
     <div id="fixedResetButtonContainer">
         <button id="toggleAdminPanelButton" class="reset-icon-button">
-            <i class="fas fa-trash-alt"></i> <!-- Icon for trash/delete -->
+            <i class="fas fa-question-circle"></i> <!-- Icon for question mark -->
         </button>
     </div>
 
@@ -376,6 +383,7 @@
         const studentIdInput = document.getElementById('studentIdInput');
         const registerButton = document.getElementById('registerButton');
         const viewReportButton = document.getElementById('viewReportButton'); // New report button
+        const exportReportButton = document.getElementById('exportReportButton'); // New export button
         const messageDisplay = document.getElementById('messageDisplay');
         const errorDisplay = document.getElementById('errorDisplay');
         const loadingIndicator = document.getElementById('loadingIndicator');
@@ -386,7 +394,7 @@
 
         // Admin UI elements (now for the floating panel)
         const adminPanelContainer = document.getElementById('adminPanelContainer'); // The new floating admin panel
-        const toggleAdminPanelButton = document.getElementById('toggleAdminPanelButton'); // The trash icon button
+        const toggleAdminPanelButton = document.getElementById('toggleAdminPanelButton'); // The question mark icon button
         const adminPasswordInput = document.getElementById('adminPasswordInput');
         const executeResetButton = document.getElementById('executeResetButton'); // The actual reset button inside the panel
 
@@ -402,6 +410,7 @@
 
         let currentUserId = null;
         let authReady = false;
+        let currentRegistrationsData = []; // To store fetched report data for export
 
         // --- Firebase Authentication ---
         onAuthStateChanged(auth, async (user) => {
@@ -412,6 +421,7 @@
                 // Enable user-facing buttons when Firebase is ready
                 registerButton.disabled = false;
                 viewReportButton.disabled = false;
+                exportReportButton.disabled = false; // Enable export button
                 // Admin button enablement is now handled by password input inside the panel
                 // After authentication, set up real-time queue data listener
                 setupQueueInfoListener();
@@ -429,6 +439,7 @@
                     // Keep all buttons disabled if authentication fails
                     registerButton.disabled = true;
                     viewReportButton.disabled = true;
+                    exportReportButton.disabled = true; // Disable export button
                     // Ensure the new executeResetButton is also disabled
                     executeResetButton.disabled = true;
                 }
@@ -685,16 +696,16 @@
                 );
                 const querySnapshot = await getDocs(q);
 
-                const registrations = [];
+                currentRegistrationsData = []; // Clear previous data
                 querySnapshot.forEach((doc) => {
                     const data = doc.data();
-                    registrations.push(data);
+                    currentRegistrationsData.push(data);
                 });
 
                 // Sort registrations by queueNumber
-                registrations.sort((a, b) => a.queueNumber - b.queueNumber);
+                currentRegistrationsData.sort((a, b) => a.queueNumber - b.queueNumber);
 
-                if (registrations.length > 0) {
+                if (currentRegistrationsData.length > 0) {
                     let tableHtml = `
                         <table class="report-table">
                             <thead>
@@ -706,7 +717,7 @@
                             </thead>
                             <tbody>
                     `;
-                    registrations.forEach(reg => {
+                    currentRegistrationsData.forEach(reg => {
                         const registrationTime = reg.timestamp && reg.timestamp.toDate ?
                             reg.timestamp.toDate().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'N/A';
                         tableHtml += `
@@ -722,9 +733,11 @@
                         </table>
                     `;
                     registrationReportDiv.innerHTML = tableHtml;
+                    exportReportButton.disabled = false; // Enable export button if there's data
                 } else {
                     registrationReportDiv.innerHTML = '';
                     noReportDataMessage.classList.remove('hidden'); // Show "no data" message
+                    exportReportButton.disabled = true; // Disable export button if no data
                 }
             } catch (e) {
                 console.error("Error fetching registration report:", e);
@@ -733,6 +746,52 @@
                 showReportLoading(false);
             }
         }
+
+        /**
+         * Exports the current registration report data to a CSV file.
+         */
+        function exportRegistrationReportToCsv() {
+            if (!currentRegistrationsData || currentRegistrationsData.length === 0) {
+                showError("ไม่มีข้อมูลรายงานให้ส่งออก");
+                return;
+            }
+
+            const headers = ["คิวที่", "รหัสนักศึกษา", "เวลาลงทะเบียน"];
+            // Escape values that might contain commas or newlines
+            const escapeCsv = (value) => {
+                if (value === null || value === undefined) return '';
+                const stringValue = String(value);
+                if (stringValue.includes(',') || stringValue.includes('\n') || stringValue.includes('"')) {
+                    return `"${stringValue.replace(/"/g, '""')}"`;
+                }
+                return stringValue;
+            };
+
+            const rows = currentRegistrationsData.map(reg => {
+                const registrationTime = reg.timestamp && reg.timestamp.toDate ?
+                    reg.timestamp.toDate().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'N/A';
+                return [
+                    escapeCsv(reg.queueNumber),
+                    escapeCsv(reg.studentId),
+                    escapeCsv(registrationTime)
+                ].join(',');
+            });
+
+            const csvContent = [headers.map(escapeCsv).join(','), ...rows].join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `รายงานคิวลงทะเบียน_${getCurrentDate()}.csv`;
+            document.body.appendChild(a); // Append to body to make it clickable in some browsers
+            a.click();
+            document.body.removeChild(a); // Clean up
+            URL.revokeObjectURL(url); // Release the object URL
+
+            showMessage("บันทึกรายงานเป็นไฟล์ CSV เรียบร้อยแล้ว");
+        }
+
 
         /**
          * Resets all queues for the current day by deleting all registration documents
@@ -798,6 +857,7 @@
         // --- Event Listeners ---
         registerButton.addEventListener('click', registerQueue);
         viewReportButton.addEventListener('click', fetchRegistrationReport);
+        exportReportButton.addEventListener('click', exportRegistrationReportToCsv); // Event listener for export button
 
         // Toggle Admin Panel visibility
         toggleAdminPanelButton.addEventListener('click', () => {
@@ -832,7 +892,6 @@
         // Also automatically fetch report when app loads and authentication is ready.
         onAuthStateChanged(auth, (user) => {
             if (user) {
-                // ... (existing code from previous update)
                 fetchRegistrationReport(); // Fetch report when auth is ready
             }
         });
