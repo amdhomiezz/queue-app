@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ระบบคิวเข้าห้องเรียน</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- เพิ่ม Font Awesome สำหรับไอคอน -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body {
@@ -136,13 +138,6 @@
             border-radius: 10px;
             border: 1px solid #fcd34d;
         }
-        .admin-section button {
-            background-color: #ef4444; /* Red for delete */
-            margin-top: 10px;
-        }
-        .admin-section button:hover {
-            background-color: #dc2626;
-        }
         /* Custom Modal Styles (for confirmation) */
         .modal {
             display: none; /* Hidden by default */
@@ -176,6 +171,39 @@
             margin: 0 10px;
             padding: 10px 20px;
         }
+
+        /* Styles for the new floating reset button */
+        #fixedResetButtonContainer {
+            position: fixed;
+            bottom: 20px; /* Adjust as needed */
+            right: 20px; /* Adjust as needed */
+            z-index: 999; /* Ensure it's above other content */
+        }
+
+        #resetQueuesButton {
+            width: 48px; /* Small fixed width */
+            height: 48px; /* Small fixed height */
+            border-radius: 50%; /* Make it circular */
+            padding: 0; /* Remove default padding */
+            display: flex; /* Use flexbox for centering icon */
+            justify-content: center;
+            align-items: center;
+            font-size: 1.25rem; /* Icon size */
+            background-color: #d1d5db; /* A subtle gray */
+            color: #fff; /* White icon */
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            transition: background-color 0.3s ease, transform 0.2s ease;
+        }
+
+        #resetQueuesButton:hover {
+            background-color: #ef4444; /* Red on hover */
+            transform: translateY(-2px); /* Slight lift effect */
+        }
+        #resetQueuesButton:disabled {
+            background-color: #a0a0a0;
+            cursor: not-allowed;
+            box-shadow: none; /* No shadow when disabled */
+        }
     </style>
 </head>
 <body>
@@ -185,7 +213,7 @@
 
         <div class="mb-4 text-left">
             <label for="studentIdInput" class="block text-gray-700 text-sm font-medium mb-2">รหัสนักศึกษา:</label>
-            <input type="text" id="studentIdInput" placeholder="กรอกรหัสนักศึกษาของคุณ" class="focus:ring-2 focus:ring-green-300 focus:border-transparent">
+            <input type="text" id="studentIdInput" placeholder="กรอกรหัสนักศึกษาของคุณ" minlength="10" maxlength="10" class="focus:ring-2 focus:ring-green-300 focus:border-transparent">
         </div>
 
         <button id="registerButton" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1" disabled>
@@ -229,9 +257,7 @@
                 <label for="adminPasswordInput" class="block text-gray-700 text-sm font-medium mb-2">รหัสผ่านผู้ดูแลระบบ:</label>
                 <input type="password" id="adminPasswordInput" placeholder="กรอกรหัสผ่านผู้ดูแลระบบ" class="focus:ring-2 focus:ring-yellow-300 focus:border-transparent">
             </div>
-            <button id="resetQueuesButton" class="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1" disabled>
-                รีเซ็ตคิวทั้งหมดวันนี้
-            </button>
+            <!-- ปุ่มรีเซ็ตถูกย้ายไปที่ #fixedResetButtonContainer -->
         </div>
     </div>
 
@@ -245,6 +271,13 @@
                 <button id="cancelResetButton" class="bg-gray-400 hover:bg-gray-500 text-white py-2 px-4 rounded-lg">ยกเลิก</button>
             </div>
         </div>
+    </div>
+
+    <!-- ปุ่มรีเซ็ตสำหรับผู้ดูแลระบบที่ถูกย้ายและปรับแต่งใหม่ -->
+    <div id="fixedResetButtonContainer">
+        <button id="resetQueuesButton" disabled>
+            <i class="fas fa-trash-alt"></i> <!-- Icon for trash/delete -->
+        </button>
     </div>
 
     <script type="module">
@@ -299,7 +332,7 @@
 
 
         // Admin password (IMPORTANT: For a real app, this should NOT be hardcoded client-side!)
-        const ADMIN_PASSWORD = "thisisME@1987"; // **** Change this to a strong, secret password ****
+        const ADMIN_PASSWORD = "thisisME@1987"; // Admin password from user input
 
         let currentUserId = null;
         let authReady = false;
@@ -478,8 +511,9 @@
             showLoading(true);
 
             const studentId = studentIdInput.value.trim();
-            if (!studentId) {
-                showError("กรุณากรอกรหัสนักศึกษาของคุณ");
+            // Validate student ID length here
+            if (studentId.length !== 10) {
+                showError("กรุณากรอกรหัสนักศึกษาให้ครบ 10 หลัก");
                 showLoading(false);
                 return;
             }
