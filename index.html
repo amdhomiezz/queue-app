@@ -127,16 +127,14 @@
             font-size: 0.9rem;
             color: #6b7280;
         }
-        /* Admin Section Styles */
-        .admin-section {
-            margin-top: 30px;
+        /* Admin Section (moved and restyled) */
+        .admin-section { /* This class is now largely decorative for the h2 inside */
+            /* No longer a distinct visual block, content is minimal */
+            margin-top: 30px; /* Kept for general spacing from report section */
             padding-top: 20px;
             border-top: 1px solid #e0e0e0;
             text-align: left;
-            background-color: #fffbeb; /* Light yellow background for admin section */
-            padding: 20px;
-            border-radius: 10px;
-            border: 1px solid #fcd34d;
+            /* Removed background and border specific to its previous block style */
         }
         /* Custom Modal Styles (for confirmation) */
         .modal {
@@ -172,37 +170,96 @@
             padding: 10px 20px;
         }
 
-        /* Styles for the new floating reset button */
-        #fixedResetButtonContainer {
+        /* Styles for the new floating admin panel */
+        #adminPanelContainer {
             position: fixed;
-            bottom: 20px; /* Adjust as needed */
-            right: 20px; /* Adjust as needed */
-            z-index: 999; /* Ensure it's above other content */
-        }
-
-        #resetQueuesButton {
-            width: 48px; /* Small fixed width */
-            height: 48px; /* Small fixed height */
-            border-radius: 50%; /* Make it circular */
-            padding: 0; /* Remove default padding */
-            display: flex; /* Use flexbox for centering icon */
-            justify-content: center;
-            align-items: center;
-            font-size: 1.25rem; /* Icon size */
-            background-color: #d1d5db; /* A subtle gray */
-            color: #fff; /* White icon */
+            bottom: 20px;
+            right: 20px;
+            z-index: 998; /* Below the toggle button, but above content */
+            background-color: #fffbeb;
+            padding: 15px;
+            border-radius: 10px;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-            transition: background-color 0.3s ease, transform 0.2s ease;
+            display: flex; /* Changed from 'none' initially, will toggle with JS */
+            flex-direction: column;
+            gap: 10px; /* Space between elements */
+            width: 200px; /* Small width */
+            transform: translateY(100px); /* Initially off-screen */
+            opacity: 0;
+            visibility: hidden;
+            transition: transform 0.3s ease-out, opacity 0.3s ease-out, visibility 0.3s ease-out;
         }
 
-        #resetQueuesButton:hover {
-            background-color: #ef4444; /* Red on hover */
-            transform: translateY(-2px); /* Slight lift effect */
+        #adminPanelContainer.admin-panel-visible {
+            transform: translateY(0);
+            opacity: 1;
+            visibility: visible;
         }
-        #resetQueuesButton:disabled {
+
+        .admin-password-input {
+            padding: 8px 12px; /* Smaller padding */
+            font-size: 0.9rem; /* Smaller font */
+            margin-bottom: 0; /* No margin bottom here, handled by gap */
+            width: 100%; /* Ensure it takes full width of its container */
+            box-sizing: border-box; /* Include padding/border in width */
+        }
+
+        .admin-execute-reset-button {
+            background-color: #ef4444; /* Red for reset */
+            color: white;
+            padding: 8px 12px; /* Smaller padding */
+            font-size: 0.9rem; /* Smaller font */
+            width: auto; /* Fit content */
+            align-self: flex-end; /* Align to bottom right of its container */
+            margin-bottom: 0; /* No margin bottom */
+            border-radius: 8px; /* Rounded corners for the button */
+            transition: background-color 0.3s ease;
+            font-weight: 600;
+        }
+        .admin-execute-reset-button:hover {
+            background-color: #dc2626;
+        }
+        .admin-execute-reset-button:disabled {
             background-color: #a0a0a0;
             cursor: not-allowed;
-            box-shadow: none; /* No shadow when disabled */
+        }
+
+
+        /* Styles for the floating trash icon (toggle button) */
+        #fixedResetButtonContainer {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 999; /* Ensures button is above the panel when both are visible */
+        }
+
+        #toggleAdminPanelButton { /* Renamed from resetQueuesButton to reflect its new role */
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.25rem;
+            background-color: #d1d5db; /* Subtle gray */
+            color: #fff;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            transition: background-color 0.3s ease, transform 0.2s ease, opacity 0.3s ease;
+            opacity: 0; /* Initially hidden */
+            pointer-events: none; /* Make it unclickable when invisible */
+        }
+
+        /* Make the trash button visible on body hover (or html hover for full page) */
+        body:hover #toggleAdminPanelButton {
+            opacity: 1;
+            pointer-events: auto; /* Make it clickable when visible */
+        }
+
+        /* If the admin panel is open, the trash button should remain visible and clickable */
+        #adminPanelContainer.admin-panel-visible + #fixedResetButtonContainer #toggleAdminPanelButton {
+            opacity: 1;
+            pointer-events: auto;
         }
     </style>
 </head>
@@ -250,14 +307,12 @@
             </div>
         </div>
 
-        <!-- ส่วนควบคุมสำหรับผู้ดูแลระบบ -->
+        <!-- ส่วนควบคุมสำหรับผู้ดูแลระบบ (Placeholder for previous admin section) -->
+        <!-- Admin Section content is now moved to the floating admin panel -->
         <div class="admin-section">
-            <h2 class="text-2xl font-bold text-gray-800 mb-4">Admin Control</h2>
-            <div class="mb-4 text-left">
-                <label for="adminPasswordInput" class="block text-gray-700 text-sm font-medium mb-2">รหัสผ่านผู้ดูแลระบบ:</label>
-                <input type="password" id="adminPasswordInput" placeholder="กรอกรหัสผ่านผู้ดูแลระบบ" class="focus:ring-2 focus:ring-yellow-300 focus:border-transparent">
-            </div>
-            <!-- ปุ่มรีเซ็ตถูกย้ายไปที่ #fixedResetButtonContainer -->
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Admin Control (เพื่อป้อนรหัสผ่านสำหรับปุ่มลบ)</h2>
+            <!-- This section primarily serves as a placeholder for the input field to be placed,
+                 and its styling is minimal. The floating admin panel handles the main interaction. -->
         </div>
     </div>
 
@@ -273,12 +328,20 @@
         </div>
     </div>
 
-    <!-- ปุ่มรีเซ็ตสำหรับผู้ดูแลระบบที่ถูกย้ายและปรับแต่งใหม่ -->
+    <!-- Floating Admin Panel (initially hidden) -->
+    <div id="adminPanelContainer">
+        <h3 class="text-lg font-bold text-gray-800 mb-2">Admin</h3>
+        <input type="password" id="adminPasswordInput" placeholder="รหัสผ่าน" class="admin-password-input focus:ring-2 focus:ring-yellow-300 focus:border-transparent">
+        <button id="executeResetButton" class="admin-execute-reset-button" disabled>รีเซ็ต</button>
+    </div>
+
+    <!-- Floating Reset Button (Trash Icon) -->
     <div id="fixedResetButtonContainer">
-        <button id="resetQueuesButton" disabled>
+        <button id="toggleAdminPanelButton" class="reset-icon-button">
             <i class="fas fa-trash-alt"></i> <!-- Icon for trash/delete -->
         </button>
     </div>
+
 
     <script type="module">
         // Import Firebase modules
@@ -321,9 +384,12 @@
         const noReportDataMessage = document.getElementById('noReportDataMessage'); // No data message
         const reportLoadingIndicator = document.getElementById('reportLoadingIndicator'); // Report loading indicator
 
-        // Admin UI elements
+        // Admin UI elements (now for the floating panel)
+        const adminPanelContainer = document.getElementById('adminPanelContainer'); // The new floating admin panel
+        const toggleAdminPanelButton = document.getElementById('toggleAdminPanelButton'); // The trash icon button
         const adminPasswordInput = document.getElementById('adminPasswordInput');
-        const resetQueuesButton = document.getElementById('resetQueuesButton');
+        const executeResetButton = document.getElementById('executeResetButton'); // The actual reset button inside the panel
+
 
         // Modal elements
         const confirmationModal = document.getElementById('confirmationModal');
@@ -346,7 +412,7 @@
                 // Enable user-facing buttons when Firebase is ready
                 registerButton.disabled = false;
                 viewReportButton.disabled = false;
-                // Admin button enablement handled by password input
+                // Admin button enablement is now handled by password input inside the panel
                 // After authentication, set up real-time queue data listener
                 setupQueueInfoListener();
             } else {
@@ -363,7 +429,8 @@
                     // Keep all buttons disabled if authentication fails
                     registerButton.disabled = true;
                     viewReportButton.disabled = true;
-                    resetQueuesButton.disabled = true; // Admin button also disabled
+                    // Ensure the new executeResetButton is also disabled
+                    executeResetButton.disabled = true;
                 }
             }
         });
@@ -720,6 +787,10 @@
             } finally {
                 showLoading(false);
                 hideConfirmationModal(); // Ensure modal is hidden
+                // After reset, hide the admin panel and clear password
+                adminPanelContainer.classList.remove('admin-panel-visible');
+                adminPasswordInput.value = '';
+                executeResetButton.disabled = true;
             }
         }
 
@@ -728,17 +799,29 @@
         registerButton.addEventListener('click', registerQueue);
         viewReportButton.addEventListener('click', fetchRegistrationReport);
 
-        // Admin password input listener
-        adminPasswordInput.addEventListener('input', () => {
-            if (adminPasswordInput.value === ADMIN_PASSWORD && authReady) {
-                resetQueuesButton.disabled = false;
+        // Toggle Admin Panel visibility
+        toggleAdminPanelButton.addEventListener('click', () => {
+            adminPanelContainer.classList.toggle('admin-panel-visible');
+            if (adminPanelContainer.classList.contains('admin-panel-visible')) {
+                adminPasswordInput.focus(); // Focus input when panel appears
             } else {
-                resetQueuesButton.disabled = true;
+                // Clear password and disable button when panel is hidden
+                adminPasswordInput.value = '';
+                executeResetButton.disabled = true;
             }
         });
 
-        // Reset Queues Button listener (shows confirmation modal)
-        resetQueuesButton.addEventListener('click', showConfirmationModal);
+        // Admin password input listener (for the executeResetButton inside the panel)
+        adminPasswordInput.addEventListener('input', () => {
+            if (adminPasswordInput.value === ADMIN_PASSWORD && authReady) {
+                executeResetButton.disabled = false;
+            } else {
+                executeResetButton.disabled = true;
+            }
+        });
+
+        // Execute Reset Button listener (shows confirmation modal)
+        executeResetButton.addEventListener('click', showConfirmationModal);
 
         // Modal button listeners
         confirmResetButton.addEventListener('click', resetAllQueuesToday);
