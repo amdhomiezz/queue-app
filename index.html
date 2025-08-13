@@ -98,7 +98,7 @@
             <input type="text" id="studentIdInput" placeholder="กรอกรหัสนักศึกษาของคุณ" class="focus:ring-2 focus:ring-green-300 focus:border-transparent">
         </div>
 
-        <button id="registerButton" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1" **disabled**>
+        <button id="registerButton" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1" disabled>
             ลงทะเบียนคิว
         </button>
 
@@ -123,15 +123,31 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, query, where, addDoc, serverTimestamp, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // นำเข้าโมดูลสำหรับ Analytics ตามที่คุณระบุ
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js";
 
-        // การตั้งค่า Firebase (จากสภาพแวดล้อม)
+
+        // การตั้งค่า Firebase (นำมาจากโปรเจกต์ Firebase ของคุณ)
+        // **สำคัญ:** รหัส appId ด้านล่างนี้ (const appId = ...) ใช้สำหรับกำหนดโครงสร้าง path ใน Firestore (เช่น artifacts/{appId}/...)
+        // ซึ่งไม่เหมือนกับ appId ที่อยู่ใน firebaseConfig ด้านล่างนี้ที่ใช้สำหรับกำหนดค่า Firebase SDK
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyA7OgbR00tGMjrQXAOtLUX34y8sXulK-5s",
+            authDomain: "queue-app-72e53.firebaseapp.com",
+            projectId: "queue-app-72e53",
+            storageBucket: "queue-app-72e53.firebasestorage.app",
+            messagingSenderId: "457625398149",
+            appId: "1:457625398149:web:2752c4993e1ced324172ec",
+            measurementId: "G-BHFP0TNYY3"
+        };
 
         // เริ่มต้นแอป Firebase
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const auth = getAuth(app);
+        // เริ่มต้น Firebase Analytics
+        const analytics = getAnalytics(app); // หากไม่ต้องการใช้ Analytics สามารถลบบรรทัดนี้ได้
 
         // องค์ประกอบ UI
         const studentIdInput = document.getElementById('studentIdInput');
@@ -158,6 +174,9 @@
                 console.log("Firebase not authenticated. Signing in anonymously...");
                 try {
                     // ใช้โทเค็นการยืนยันตัวตนเริ่มต้นที่จัดเตรียมไว้ หากมี
+                    // ในบริบทของ GitHub Pages โค้ดนี้จะไม่ถูกเรียกใช้
+                    // เนื่องจากไม่มี __initial_auth_token
+                    // ดังนั้นจะเข้าสู่ signInAnonymously() เสมอ
                     if (typeof __initial_auth_token !== 'undefined') {
                         await signInWithCustomToken(auth, __initial_auth_token);
                     } else {
@@ -380,3 +399,4 @@
     </script>
 </body>
 </html>
+อออออออออออออออออออออ
