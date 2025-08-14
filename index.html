@@ -186,27 +186,24 @@
         #adminPanelContainer {
             position: fixed;
             bottom: 20px;
-            left: 20px; /* Changed from right: 20px */
+            left: 20px; /* Place it on the left, near the export button */
             z-index: 998; /* Below the toggle button, but above content */
             background-color: #fffbeb;
             padding: 15px;
             border-radius: 10px;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-            display: flex; /* Changed from 'none' initially, will toggle with JS */
+            /* Initially hidden, will be made visible by JS on demand */
+            display: none; /* Controlled by JS now */
             flex-direction: column;
             gap: 10px; /* Space between elements */
             width: 200px; /* Small width */
-            transform: translateX(-100px); /* Initially off-screen to the left */
-            opacity: 0;
-            visibility: hidden;
             transition: transform 0.3s ease-out, opacity 0.3s ease-out, visibility 0.3s ease-out;
+            transform: translateY(0); /* Start position */
+            opacity: 1; /* Always visible opacity when display is not 'none' */
+            visibility: visible; /* Always visible when display is not 'none' */
         }
 
-        #adminPanelContainer.admin-panel-visible {
-            transform: translateX(0); /* Slides in from the left */
-            opacity: 1;
-            visibility: visible;
-        }
+        /* No admin-panel-visible class needed for toggling visibility, only display property */
 
         .admin-password-input {
             padding: 8px 12px; /* Smaller padding */
@@ -246,21 +243,13 @@
         }
 
         /* Specific colors and positions for floating buttons */
-        #toggleAdminPanelButton { /* Question mark button (left side) */
-            background-color: #e0e0e0; /* A very light gray */
-            color: #6b7280; /* Darker gray for the question mark itself */
-            bottom: 20px;
-            left: 20px;
-        }
-        #toggleAdminPanelButton:hover {
-             background-color: #c9c9c9; /* Slightly darker gray on hover */
-        }
+        /* Removed #toggleAdminPanelButton styles */
 
         #toggleExportReportButton { /* Save button (left side) */
             background-color: #9ca3af; /* A subtle blue-gray */
             color: #fff;
             bottom: 20px;
-            left: 80px; /* Position next to admin toggle button */
+            left: 20px; /* Positioned at left 20px now */
         }
         #toggleExportReportButton:hover {
             background-color: #6b7280; /* Darker gray on hover */
@@ -282,17 +271,16 @@
             pointer-events: auto; /* Make them clickable when visible */
         }
 
-        /* If admin panel is open, keep its toggle button and export button visible (as they are grouped on left) */
-        #adminPanelContainer.admin-panel-visible + #fixedAdminToggleButtonContainer #toggleAdminPanelButton,
-        #fixedExportButtonContainer #toggleExportReportButton {
-            opacity: 1;
-            pointer-events: auto;
-        }
-        /* If admin panel is open, also ensure the reset button is visible and clickable */
+        /* If admin panel is open, ensure all buttons are visible */
+        /* This rule is simplified as admin panel display is now JS controlled */
+        #adminPanelContainer.admin-panel-visible ~ #fixedExportButtonContainer #toggleExportReportButton,
         #adminPanelContainer.admin-panel-visible ~ #fixedResetButtonContainer #resetQueueButton {
              opacity: 1;
              pointer-events: auto;
         }
+
+        /* Ensure floating buttons are visible when admin panel is shown */
+        /* This is tricky with siblings, so the JS will handle making buttons visible */
     </style>
 </head>
 <body>
@@ -358,17 +346,17 @@
         </div>
     </div>
 
-    <!-- Floating Admin Panel (initially hidden) -->
+    <!-- Floating Admin Panel (initially hidden by display: none) -->
     <div id="adminPanelContainer">
         <input type="password" id="adminPasswordInput" placeholder="" class="admin-password-input focus:ring-2 focus:ring-yellow-300 focus:border-transparent">
     </div>
 
-    <!-- Floating Toggle Button (Question Mark Icon) -->
-    <div id="fixedAdminToggleButtonContainer">
+    <!-- Removed Floating Toggle Button (Question Mark Icon) Container -->
+    <!-- <div id="fixedAdminToggleButtonContainer">
         <button id="toggleAdminPanelButton" class="floating-icon-button">
-            <i class="fas fa-question-circle"></i> <!-- Icon for question mark -->
+            <i class="fas fa-question-circle"></i> Icon for question mark
         </button>
-    </div>
+    </div> -->
 
     <!-- Floating Export Button (Save Icon) -->
     <div id="fixedExportButtonContainer">
@@ -377,10 +365,10 @@
         </button>
     </div>
 
-    <!-- New Floating Reset Button (Trash Icon) -->
+    <!-- New Floating Reset Button (Smiling Face Icon) -->
     <div id="fixedResetButtonContainer">
         <button id="resetQueueButton" class="floating-icon-button">
-            <i class="fas fa-trash"></i> <!-- Icon for trash -->
+            <i class="fas fa-smile"></i> <!-- Icon for smile -->
         </button>
     </div>
 
@@ -424,7 +412,7 @@
 
         // Admin UI elements
         const adminPanelContainer = document.getElementById('adminPanelContainer');
-        const toggleAdminPanelButton = document.getElementById('toggleAdminPanelButton');
+        // const toggleAdminPanelButton = document.getElementById('toggleAdminPanelButton'); // Removed
         const toggleExportReportButton = document.getElementById('toggleExportReportButton');
         const adminPasswordInput = document.getElementById('adminPasswordInput');
         const resetQueueButton = document.getElementById('resetQueueButton'); // Get the new reset button
@@ -576,6 +564,22 @@
          */
         function hideConfirmationModal() {
             confirmationModal.style.display = 'none';
+        }
+
+        /**
+         * Shows the admin panel (password input).
+         */
+        function showAdminPanel() {
+            adminPanelContainer.style.display = 'flex';
+            adminPasswordInput.focus();
+        }
+
+        /**
+         * Hides the admin panel (password input).
+         */
+        function hideAdminPanel() {
+            adminPanelContainer.style.display = 'none';
+            adminPasswordInput.value = ''; // Clear password
         }
 
         // --- Firestore Data Operations ---
@@ -816,11 +820,7 @@
             // Check admin password from the floating admin panel's input
             const enteredPassword = adminPasswordInput.value;
             if (enteredPassword !== ADMIN_PASSWORD) {
-                // Optionally, make admin panel visible if it's hidden, and focus password input
-                if (!adminPanelContainer.classList.contains('admin-panel-visible')) {
-                    adminPanelContainer.classList.add('admin-panel-visible');
-                }
-                adminPasswordInput.focus();
+                showAdminPanel(); // Show panel if password is wrong
                 showError("รหัสผ่านไม่ถูกต้อง"); // Provide feedback for incorrect password
                 return;
             }
@@ -864,6 +864,7 @@
             URL.revokeObjectURL(url); // Release the object URL
 
             showMessage("บันทึกรายงานเป็นไฟล์ CSV เรียบร้อยแล้ว");
+            hideAdminPanel(); // Hide panel after successful export
         }
 
 
@@ -920,27 +921,25 @@
             } finally {
                 showLoading(false);
                 hideConfirmationModal(); // Ensure modal is hidden
-                // After reset, hide the admin panel and clear password
-                adminPanelContainer.classList.remove('admin-panel-visible');
-                adminPasswordInput.value = '';
+                hideAdminPanel(); // Hide admin panel after successful reset
             }
         }
 
 
         // --- Event Listeners ---
         registerButton.addEventListener('click', registerQueue);
-        toggleExportReportButton.addEventListener('click', exportRegistrationReportToCsv); // Event listener for floating export button
-
-        // Toggle Admin Panel visibility
-        toggleAdminPanelButton.addEventListener('click', () => {
-            adminPanelContainer.classList.toggle('admin-panel-visible');
-            if (adminPanelContainer.classList.contains('admin-panel-visible')) {
-                adminPasswordInput.focus(); // Focus input when panel appears
+        
+        toggleExportReportButton.addEventListener('click', () => {
+            // Check password before exporting
+            const enteredPassword = adminPasswordInput.value;
+            if (enteredPassword !== ADMIN_PASSWORD) {
+                showAdminPanel(); // Show panel if password is wrong
+                showError("รหัสผ่านไม่ถูกต้อง"); // Provide feedback for incorrect password
             } else {
-                // Clear password and disable button when panel is hidden
-                adminPasswordInput.value = '';
+                exportRegistrationReportToCsv();
             }
         });
+
 
         // Handle click on the new Reset Queue Button
         resetQueueButton.addEventListener('click', () => {
@@ -953,11 +952,8 @@
             if (enteredPassword === ADMIN_PASSWORD) {
                 showConfirmationModal();
             } else {
+                showAdminPanel(); // Show panel if password is wrong
                 showError("รหัสผ่านไม่ถูกต้อง"); // Provide feedback for incorrect password
-                if (!adminPanelContainer.classList.contains('admin-panel-visible')) {
-                    adminPanelContainer.classList.add('admin-panel-visible');
-                }
-                adminPasswordInput.focus();
             }
         });
 
