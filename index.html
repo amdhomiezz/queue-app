@@ -62,6 +62,16 @@
             font-weight: 500;
             text-align: left;
         }
+        /* New style for highlighted success message */
+        .highlight-success-message {
+            font-size: 2.5rem; /* Approximately 2-3x of 1.1rem */
+            font-weight: 700; /* Bold */
+            color: #dc2626; /* red-600 */
+            background-color: transparent !important; /* Override default message-box background */
+            text-align: center !important; /* Center the message */
+            padding: 0 !important; /* Remove padding for a tighter look */
+        }
+
         .error-message {
             background-color: #fee2e2;
             color: #ef4444;
@@ -304,17 +314,12 @@
         </div>
 
         <div id="currentQueueInfo" class="current-queue-info">
-            <p class="text-3xl font-bold text-green-700">หมายเลขผู้เรียนของคุณวันนี้ คือ <span id="highestQueueNumberDisplay" class="font-bold text-green-700">--</span></p>
+            <p class="text-3xl font-bold text-green-700">จำนวนของนักศึกษาที่เช็คชื่อแล้ววันนี้: <span id="highestQueueNumberDisplay" class="font-bold text-green-700">--</span></p>
         </div>
 
         <!-- ส่วนสำหรับรายงานการลงทะเบียน -->
         <div class="report-section">
-            <h2 class="text-xl font-bold text-gray-800 mb-4">ลำดับหมายเลขเรียนวันนี้</h2>
-            <div class="flex flex-wrap gap-3 mb-4 justify-center">
-                <button id="viewReportButton" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1" disabled>
-                    ดูรายงานการลงทะเบียนวันนี้
-                </button>
-            </div>
+            <h2 class="text-xl font-bold text-gray-800 mb-4">ลำดับหมายเลขผู้เรียนประจำวัน</h2>
             <div id="reportLoadingIndicator" class="report-loading-indicator">
                 กำลังโหลดรายงาน...
             </div>
@@ -343,7 +348,6 @@
     <!-- Floating Admin Panel (initially hidden) -->
     <div id="adminPanelContainer">
         <input type="password" id="adminPasswordInput" placeholder="" class="admin-password-input focus:ring-2 focus:ring-yellow-300 focus:border-transparent">
-        <p class="text-xs text-gray-500 text-right mt-1">กด Enter เพื่อรีเซ็ต</p>
     </div>
 
     <!-- Floating Toggle Button (Question Mark Icon) -->
@@ -390,7 +394,7 @@
         // UI elements
         const studentIdInput = document.getElementById('studentIdInput');
         const registerButton = document.getElementById('registerButton');
-        const viewReportButton = document.getElementById('viewReportButton');
+        // Removed viewReportButton, no longer needed directly
         const messageDisplay = document.getElementById('messageDisplay');
         const errorDisplay = document.getElementById('errorDisplay');
         const loadingIndicator = document.getElementById('loadingIndicator');
@@ -427,7 +431,6 @@
                 console.log("Firebase authenticated. User ID:", currentUserId);
                 // Enable user-facing buttons when Firebase is ready
                 registerButton.disabled = false;
-                // Since viewReportButton is removed, no need to enable it here
                 // floating export button is always clickable once auth is ready, password check is inside its handler
                 // After authentication, set up real-time queue data listener
                 setupQueueInfoListener();
@@ -441,7 +444,6 @@
                     showError("เกิดข้อผิดพลาดในการเข้าสู่ระบบ โปรดลองอีกครั้ง");
                     // Keep all buttons disabled if authentication fails
                     registerButton.disabled = true;
-                    // Since viewReportButton is removed, no need to disable it here
                 }
             }
         });
@@ -479,10 +481,18 @@
          * @param {string} message Message to display.
          */
         function showMessage(message) {
-            messageDisplay.textContent = message;
             messageDisplay.classList.remove('hidden', 'error-message');
-            messageDisplay.classList.add('message-box');
+            messageDisplay.classList.add('message-box'); // Apply default message-box styles first
             errorDisplay.classList.add('hidden'); // Hide any error messages
+
+            // Check if it's the specific registration success message
+            if (message.startsWith("คุณได้รับคิวหมายเลข:")) {
+                messageDisplay.textContent = message.replace("คุณได้รับคิวหมายเลข:", "คุณได้รับลำดับผู้เรียนหมายเลข :");
+                messageDisplay.classList.add('highlight-success-message'); // Apply highlight styles
+            } else {
+                messageDisplay.textContent = message;
+                messageDisplay.classList.remove('highlight-success-message'); // Remove highlight for other messages
+            }
         }
 
         /**
@@ -502,6 +512,8 @@
         function hideMessages() {
             messageDisplay.classList.add('hidden');
             errorDisplay.classList.add('hidden');
+            // Ensure highlight class is removed when messages are hidden
+            messageDisplay.classList.remove('highlight-success-message');
         }
 
         /**
@@ -664,7 +676,7 @@
                 // Update localStorage to prevent duplicate registration today from this device
                 localStorage.setItem(`lastRegistrationDate_${appId}_${deviceId}`, currentDate);
 
-                showMessage(`คุณได้รับคิวหมายเลข: ${newQueueNumber}`);
+                showMessage(`คุณได้รับคิวหมายเลข: ${newQueueNumber}`); // This message will be styled by highlight-success-message
                 studentIdInput.value = ''; // Clear input field
                 // Automatically refresh report after successful registration
                 fetchRegistrationReport();
@@ -865,7 +877,7 @@
 
         // --- Event Listeners ---
         registerButton.addEventListener('click', registerQueue);
-        // Removed viewReportButton.addEventListener('click', fetchRegistrationReport);
+        // Removed viewReportButton.addEventListener('click', fetchRegistrationReport); // Removed this button
         toggleExportReportButton.addEventListener('click', exportRegistrationReportToCsv); // Event listener for floating export button
 
         // Toggle Admin Panel visibility
