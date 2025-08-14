@@ -106,8 +106,9 @@
         }
         .report-table {
             width: 100%;
+            max-width: 350px; /* Reduced max-width for each table */
             border-collapse: collapse;
-            margin-top: 20px;
+            margin: 0 auto; /* Center the table within its container */
         }
         .report-table th, .report-table td {
             border: 1px solid #e0e0e0;
@@ -313,17 +314,17 @@
             กำลังประมวลผล... โปรดรอสักครู่
         </div>
 
-        <!-- Moved this section below the report table -->
-
         <!-- ส่วนสำหรับรายงานการลงทะเบียน -->
         <div class="report-section">
             <h2 class="text-xl font-bold text-gray-800 mb-4">ลำดับหมายเลขผู้เรียนประจำวัน</h2>
             <div id="reportLoadingIndicator" class="report-loading-indicator">
                 กำลังโหลดรายงาน...
             </div>
-            <div id="registrationReport" class="mt-4">
-                <!-- ตารางรายงานจะถูกสร้างที่นี่ -->
-                <p id="noReportDataMessage" class="no-data-message hidden">ยังไม่มีข้อมูลการลงทะเบียนสำหรับวันนี้</p>
+            <!-- Modified to display two columns for tables -->
+            <div id="registrationReport" class="mt-4 flex flex-wrap justify-center gap-4">
+                <div id="leftTableContainer" class="w-full md:w-1/2"></div>
+                <div id="rightTableContainer" class="w-full md:w-1/2"></div>
+                <p id="noReportDataMessage" class="no-data-message hidden w-full">ยังไม่มีข้อมูลการลงทะเบียนสำหรับวันนี้</p>
             </div>
         </div>
 
@@ -538,7 +539,9 @@
         function showReportLoading(show) {
             if (show) {
                 reportLoadingIndicator.classList.remove('hidden');
-                registrationReportDiv.innerHTML = ''; // Clear existing report
+                // Don't clear registrationReportDiv here, as it now contains containers
+                document.getElementById('leftTableContainer').innerHTML = '';
+                document.getElementById('rightTableContainer').innerHTML = '';
                 noReportDataMessage.classList.add('hidden'); // Hide no data message
             } else {
                 reportLoadingIndicator.classList.add('hidden');
@@ -643,7 +646,7 @@
                 // Increment queue number, max 170
                 let newQueueNumber = highestQueueNumber + 1;
                 if (newQueueNumber > 170) {
-                    showError("คิวเต็มแล้วสำหรับวันนี้ โปรดลองใหม่ในวันพรุ่งนี้");
+                    showError("คิวเต็มแล้วสำหรับวันนี้ โปรดลองใหม่ในวันพรหัสบดี"); // Changed to "วันพฤหัสบดี" for demo
                     showLoading(false);
                     return;
                 }
@@ -696,6 +699,7 @@
          */
         async function fetchRegistrationReport() {
             if (!authReady) {
+                console.warn("Authentication not ready for report fetch.");
                 showError("ระบบยังไม่พร้อม โปรดรอสักครู่และลองอีกครั้ง");
                 return;
             }
@@ -720,37 +724,65 @@
                 // Sort registrations by queueNumber
                 currentRegistrationsData.sort((a, b) => a.queueNumber - b.queueNumber);
 
+                // Get the table containers
+                const leftTableContainer = document.getElementById('leftTableContainer');
+                const rightTableContainer = document.getElementById('rightTableContainer');
+
+                // Clear previous content
+                leftTableContainer.innerHTML = '';
+                rightTableContainer.innerHTML = '';
+
+
                 if (currentRegistrationsData.length > 0) {
-                    let tableHtml = `
-                        <table class="report-table">
-                            <thead>
-                                <tr>
-                                    <th>ลำดับ</th>
-                                    <th>รหัสนักศึกษา</th>
-                                    <th>เวลาลงทะเบียน</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                    `;
-                    currentRegistrationsData.forEach(reg => {
-                        const registrationTime = reg.timestamp && reg.timestamp.toDate ?
-                            reg.timestamp.toDate().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'N/A';
-                        tableHtml += `
-                            <tr>
-                                <td>${reg.queueNumber}</td>
-                                <td>${reg.studentId}</td>
-                                <td>${registrationTime}</td>
-                            </tr>
+                    const midpoint = Math.ceil(currentRegistrationsData.length / 2);
+                    const leftHalf = currentRegistrationsData.slice(0, midpoint);
+                    const rightHalf = currentRegistrationsData.slice(midpoint);
+
+                    const generateTableHtml = (data) => {
+                        if (data.length === 0) return ''; // Return empty if no data for this half
+
+                        let tableHtml = `
+                            <table class="report-table">
+                                <thead>
+                                    <tr>
+                                        <th>ลำดับ</th>
+                                        <th>รหัสนักศึกษา</th>
+                                        <th>เวลาลงทะเบียน</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
                         `;
-                    });
-                    tableHtml += `
-                            </tbody>
-                        </table>
-                    `;
-                    registrationReportDiv.innerHTML = tableHtml;
+                        data.forEach(reg => {
+                            const registrationTime = reg.timestamp && reg.timestamp.toDate ?
+                                reg.timestamp.toDate().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'N/A';
+                            tableHtml += `
+                                <tr>
+                                    <td>${reg.queueNumber}</td>
+                                    <td>${reg.studentId}</td>
+                                    <td>${registrationTime}</td>
+                                </tr>
+                            `;
+                        });
+                        tableHtml += `
+                                </tbody>
+                            </table>
+                        `;
+                        return tableHtml;
+                    };
+
+                    const leftTableHtml = generateTableHtml(leftHalf);
+                    const rightTableHtml = generateTableHtml(rightHalf);
+
+                    if (leftHalf.length > 0) {
+                        leftTableContainer.innerHTML = leftTableHtml;
+                    }
+                    if (rightHalf.length > 0) { // Only append right table if there's data for it
+                        rightTableContainer.innerHTML = rightTableHtml;
+                    }
+
+                    noReportDataMessage.classList.add('hidden'); // Ensure hidden if there's data
                 } else {
-                    registrationReportDiv.innerHTML = '';
-                    noReportDataMessage.classList.remove('hidden'); // Show "no data" message
+                    noReportDataMessage.classList.remove('hidden'); // Show no data message if no registrations
                 }
             } catch (e) {
                 console.error("Error fetching registration report:", e);
@@ -880,7 +912,6 @@
 
         // --- Event Listeners ---
         registerButton.addEventListener('click', registerQueue);
-        // Removed viewReportButton.addEventListener('click', fetchRegistrationReport); // Removed this button
         toggleExportReportButton.addEventListener('click', exportRegistrationReportToCsv); // Event listener for floating export button
 
         // Toggle Admin Panel visibility
