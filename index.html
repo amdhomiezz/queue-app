@@ -82,6 +82,13 @@
             font-weight: 500;
             text-align: left;
         }
+        /* Style for smaller password error message */
+        .password-error-message {
+            color: #ef4444;
+            font-size: 0.8rem; /* Smaller font size */
+            margin-top: 5px; /* Small margin below input */
+            text-align: left;
+        }
         .loading-indicator {
             display: none; /* ซ่อนไว้ตามค่าเริ่มต้น */
             margin-top: 20px;
@@ -330,7 +337,8 @@
 
     <!-- Floating Admin Panel (initially hidden by display: none) -->
     <div id="adminPanelContainer">
-        <input type="password" id="adminPasswordInput" placeholder="" class="admin-password-input focus:ring-2 focus:ring-yellow-300 focus:border-transparent">
+        <input type="password" id="adminPasswordInput" placeholder="รหัสผ่านผู้ดูแลระบบ" class="admin-password-input focus:ring-2 focus:ring-yellow-300 focus:border-transparent">
+        <span id="passwordErrorDisplay" class="password-error-message hidden">รหัสผ่านไม่ถูกต้อง</span>
     </div>
 
     <!-- Floating Export Button (Save Icon) -->
@@ -389,7 +397,8 @@
         const adminPanelContainer = document.getElementById('adminPanelContainer');
         const toggleExportReportButton = document.getElementById('toggleExportReportButton');
         const adminPasswordInput = document.getElementById('adminPasswordInput');
-        const resetQueueButton = document.getElementById('resetQueueButton'); // Get the new reset button
+        const passwordErrorDisplay = document.getElementById('passwordErrorDisplay'); // New: Get password error display
+        const resetQueueButton = document.getElementById('resetQueueButton');
 
 
         // Modal elements
@@ -466,6 +475,7 @@
             messageDisplay.classList.remove('hidden', 'error-message');
             messageDisplay.classList.add('message-box'); // Apply default message-box styles first
             errorDisplay.classList.add('hidden'); // Hide any error messages
+            passwordErrorDisplay.classList.add('hidden'); // Hide password error
 
             // Check if it's the specific registration success message
             if (message.startsWith("คุณได้รับคิวหมายเลข:")) {
@@ -486,6 +496,17 @@
             errorDisplay.classList.remove('hidden', 'message-box');
             errorDisplay.classList.add('error-message');
             messageDisplay.classList.add('hidden'); // Hide any success messages
+            passwordErrorDisplay.classList.add('hidden'); // Hide password error
+        }
+
+        /**
+         * Displays a password-specific error message.
+         * @param {string} message Error message to display.
+         */
+        function showPasswordError(message) {
+            passwordErrorDisplay.textContent = message;
+            passwordErrorDisplay.classList.remove('hidden');
+            hideMessages(); // Hide general messages
         }
 
         /**
@@ -494,6 +515,7 @@
         function hideMessages() {
             messageDisplay.classList.add('hidden');
             errorDisplay.classList.add('hidden');
+            passwordErrorDisplay.classList.add('hidden'); // Also hide password error
             // Ensure highlight class is removed when messages are hidden
             messageDisplay.classList.remove('highlight-success-message');
         }
@@ -554,6 +576,7 @@
         function hideAdminPanel() {
             adminPanelContainer.style.display = 'none';
             adminPasswordInput.value = ''; // Clear password
+            passwordErrorDisplay.classList.add('hidden'); // Hide password error when panel hides
         }
 
         // --- Firestore Data Operations ---
@@ -791,16 +814,16 @@
          * This function now includes a password check.
          */
         function exportRegistrationReportToCsv() {
-            // Check admin password from the floating admin panel's input
             const enteredPassword = adminPasswordInput.value;
             if (enteredPassword !== ADMIN_PASSWORD) {
-                showAdminPanel(); // Show panel if password is wrong
-                showError("รหัสผ่านไม่ถูกต้อง"); // Provide feedback for incorrect password
+                showAdminPanel();
+                showPasswordError("รหัสผ่านไม่ถูกต้อง"); // Use specific password error display
                 return;
             }
 
             if (!currentRegistrationsData || currentRegistrationsData.length === 0) {
                 showError("ไม่มีข้อมูลรายงานให้ส่งออก");
+                hideAdminPanel(); // Hide panel if no data
                 return;
             }
 
@@ -849,6 +872,9 @@
          * a robust server-side authentication and authorization mechanism, not just a client-side password.
          */
         async function resetAllQueuesToday() {
+            // Password check is already done by the button click handler that calls showConfirmationModal
+            // So, no need to check password here again
+
             if (!authReady) {
                 showError("ระบบยังไม่พร้อม โปรดรอสักครู่และลองอีกครั้ง");
                 return;
@@ -903,46 +929,40 @@
         // --- Event Listeners ---
         registerButton.addEventListener('click', registerQueue);
         
+        // Handle click on the Export Button
         toggleExportReportButton.addEventListener('click', () => {
-            // Check password before exporting
+            hideMessages(); // Clear any previous messages
             const enteredPassword = adminPasswordInput.value;
-            if (enteredPassword !== ADMIN_PASSWORD) {
-                showAdminPanel(); // Show panel if password is wrong
-                showError("รหัสผ่านไม่ถูกต้อง"); // Provide feedback for incorrect password
-            } else {
+            if (enteredPassword === ADMIN_PASSWORD) {
                 exportRegistrationReportToCsv();
+            } else {
+                showAdminPanel(); // Show panel
+                showPasswordError("รหัสผ่านไม่ถูกต้อง"); // Show error message
             }
         });
 
 
-        // Handle click on the new Reset Queue Button
+        // Handle click on the Reset Queue Button
         resetQueueButton.addEventListener('click', () => {
             if (!authReady) {
                 showError("ระบบยังไม่พร้อม โปรดรอสักครู่และลองอีกครั้ง");
                 return;
             }
-
+            
+            hideMessages(); // Clear any previous messages
             const enteredPassword = adminPasswordInput.value;
             if (enteredPassword === ADMIN_PASSWORD) {
                 showConfirmationModal();
             } else {
-                showAdminPanel(); // Show panel if password is wrong
-                showError("รหัสผ่านไม่ถูกต้อง"); // Provide feedback for incorrect password
+                showAdminPanel(); // Show panel
+                showPasswordError("รหัสผ่านไม่ถูกต้อง"); // Show error message
             }
         });
 
-
-        // Admin password input listener for Enter key (REMOVED: this was causing the confusion)
-        // adminPasswordInput.addEventListener('keyup', (event) => {
-        //     if (event.key === 'Enter') {
-        //         if (adminPasswordInput.value === ADMIN_PASSWORD && authReady) {
-        //             showConfirmationModal();
-        //             event.preventDefault(); // Prevent default form submission if any
-        //         } else {
-        //             showError("รหัสผ่านไม่ถูกต้อง"); // Provide feedback for incorrect password
-        //         }
-        //     }
-        // });
+        // Add an event listener to the password input itself to hide the error when user types
+        adminPasswordInput.addEventListener('input', () => {
+            passwordErrorDisplay.classList.add('hidden'); // Hide error when user starts typing
+        });
 
         // Modal button listeners
         confirmResetButton.addEventListener('click', resetAllQueuesToday);
