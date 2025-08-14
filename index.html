@@ -84,7 +84,7 @@
             background-color: #ecfdf5;
             border: 1px solid #d1fae5;
             border-radius: 10px;
-            font-size: 1.1rem; /* Adjusted for consistency, will make span bold */
+            /* font-size will be controlled by the specific p tag and span within */
             font-weight: 500;
             color: #047857;
         }
@@ -175,7 +175,7 @@
         #adminPanelContainer {
             position: fixed;
             bottom: 20px;
-            right: 20px;
+            left: 20px; /* Changed from right: 20px */
             z-index: 998; /* Below the toggle button, but above content */
             background-color: #fffbeb;
             padding: 15px;
@@ -185,14 +185,14 @@
             flex-direction: column;
             gap: 10px; /* Space between elements */
             width: 200px; /* Small width */
-            transform: translateY(100px); /* Initially off-screen */
+            transform: translateX(-100px); /* Initially off-screen to the left */
             opacity: 0;
             visibility: hidden;
             transition: transform 0.3s ease-out, opacity 0.3s ease-out, visibility 0.3s ease-out;
         }
 
         #adminPanelContainer.admin-panel-visible {
-            transform: translateY(0);
+            transform: translateX(0); /* Slides in from the left */
             opacity: 1;
             visibility: visible;
         }
@@ -205,24 +205,9 @@
             box-sizing: border-box; /* Include padding/border in width */
         }
 
-        .admin-execute-reset-button {
-            background-color: #ef4444; /* Red for reset */
-            color: white;
-            padding: 8px 12px; /* Smaller padding */
-            font-size: 0.9rem; /* Smaller font */
-            width: auto; /* Fit content */
-            align-self: flex-end; /* Align to bottom right of its container */
-            margin-bottom: 0; /* No margin bottom */
-            border-radius: 8px; /* Rounded corners for the button */
-            transition: background-color 0.3s ease;
-            font-weight: 600;
-        }
-        .admin-execute-reset-button:hover {
-            background-color: #dc2626;
-        }
-        .admin-execute-reset-button:disabled {
-            background-color: #a0a0a0;
-            cursor: not-allowed;
+        /* The hidden reset trigger style - not an actual button now */
+        .admin-execute-reset-trigger {
+            display: none; /* This is just a conceptual placeholder now, not a visible button */
         }
 
 
@@ -254,7 +239,7 @@
             background-color: #e0e0e0; /* A very light gray */
             color: #6b7280; /* Darker gray for the question mark itself */
             bottom: 20px;
-            right: 20px;
+            left: 20px; /* Changed from right: 20px */
         }
         #toggleAdminPanelButton:hover {
              background-color: #c9c9c9; /* Slightly darker gray on hover */
@@ -264,7 +249,7 @@
             background-color: #9ca3af; /* A subtle blue-gray */
             color: #fff;
             bottom: 20px;
-            right: 80px; /* Position next to admin toggle button */
+            left: 80px; /* Changed from right: 80px */
         }
         #toggleExportReportButton:hover {
             background-color: #6b7280; /* Darker gray on hover */
@@ -278,11 +263,13 @@
         }
 
         /* If admin panel is open, keep its toggle button visible */
+        /* Updated selector because admin panel is on the left now */
         #adminPanelContainer.admin-panel-visible + #fixedAdminToggleButtonContainer #toggleAdminPanelButton {
             opacity: 1;
             pointer-events: auto;
         }
         /* If admin panel is open, ensure the export button is also visible and clickable */
+        /* Updated selector because admin panel is on the left now */
         #adminPanelContainer.admin-panel-visible ~ #fixedExportButtonContainer #toggleExportReportButton {
              opacity: 1;
              pointer-events: auto;
@@ -295,7 +282,7 @@
         <p class="text-xl font-semibold text-gray-700 mb-2">CA033 : Idea Generation Workshop and Agile Management</p>
         <h1 class="text-3xl font-bold text-gray-800 mb-6">ระบบรับหมายเลขผู้เรียน (เช็คชื่อ)</h1>
         <p class="text-gray-600 mb-1">กรอกรหัสนักศึกษา 10 หลัก</p>
-        <p class="text-gray-600 mb-6">เพื่อรับหมายเลขประจำตัวผู้เรียน</p>
+        <p class="text-gray-600 mb-6">เพื่อรับหมายเลขประจำตัวผู้เรียนประจำวันนี้</p>
 
         <div class="mb-4 text-left">
             <label for="studentIdInput" class="block text-gray-700 text-sm font-medium mb-2">รหัสนักศึกษา:</label>
@@ -317,13 +304,12 @@
         </div>
 
         <div id="currentQueueInfo" class="current-queue-info">
-            <p class="text-xl font-bold text-green-700">หมายเลขผู้เรียน: <span id="highestQueueNumberDisplay" class="font-bold text-green-700">--</span></p>
-            <!-- Removed the reset queue daily message -->
+            <p class="text-3xl font-bold text-green-700">หมายเลขผู้เรียนของคุณวันนี้ คือ <span id="highestQueueNumberDisplay" class="font-bold text-green-700">--</span></p>
         </div>
 
         <!-- ส่วนสำหรับรายงานการลงทะเบียน -->
         <div class="report-section">
-            <h2 class="text-2xl font-bold text-gray-800 mb-4">รายงานการลงทะเบียน</h2>
+            <h2 class="text-xl font-bold text-gray-800 mb-4">ลำดับหมายเลขเรียนวันนี้</h2>
             <div class="flex flex-wrap gap-3 mb-4 justify-center">
                 <button id="viewReportButton" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1" disabled>
                     ดูรายงานการลงทะเบียนวันนี้
@@ -340,7 +326,6 @@
 
         <!-- ส่วนควบคุมสำหรับผู้ดูแลระบบ (Placeholder for previous admin section) -->
         <div class="admin-section">
-            <!-- Removed the h2 title "Admin Control" -->
         </div>
     </div>
 
@@ -357,10 +342,8 @@
 
     <!-- Floating Admin Panel (initially hidden) -->
     <div id="adminPanelContainer">
-        <input type="password" id="adminPasswordInput" placeholder="รหัสผ่าน" class="admin-password-input focus:ring-2 focus:ring-yellow-300 focus:border-transparent">
-        <button id="executeResetButton" class="admin-execute-reset-button" disabled>
-            <i class="fas fa-trash-alt"></i> <!-- Icon for trash/delete -->
-        </button>
+        <input type="password" id="adminPasswordInput" placeholder="" class="admin-password-input focus:ring-2 focus:ring-yellow-300 focus:border-transparent">
+        <p class="text-xs text-gray-500 text-right mt-1">กด Enter เพื่อรีเซ็ต</p>
     </div>
 
     <!-- Floating Toggle Button (Question Mark Icon) -->
@@ -381,14 +364,12 @@
     <script type="module">
         // Import Firebase modules
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, query, where, addDoc, serverTimestamp, getDocs, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js";
 
 
         // Firebase configuration (from your Firebase project)
-        // IMPORTANT: The appId below (const appId = ...) is used for structuring paths in Firestore (e.g., artifacts/{appId}/...).
-        // This is different from the appId within firebaseConfig below, which is used to configure the Firebase SDK.
         const firebaseConfig = {
             apiKey: "AIzaSyA7OgbR00tGMjrQXAOtLUX34y8sXulK-5s",
             authDomain: "queue-app-72e53.firebaseapp.com",
@@ -409,22 +390,20 @@
         // UI elements
         const studentIdInput = document.getElementById('studentIdInput');
         const registerButton = document.getElementById('registerButton');
-        const viewReportButton = document.getElementById('viewReportButton'); // New report button
-        // const exportReportButton = document.getElementById('exportReportButton'); // Removed the old export button
+        const viewReportButton = document.getElementById('viewReportButton');
         const messageDisplay = document.getElementById('messageDisplay');
         const errorDisplay = document.getElementById('errorDisplay');
         const loadingIndicator = document.getElementById('loadingIndicator');
         const highestQueueNumberDisplay = document.getElementById('highestQueueNumberDisplay');
-        const registrationReportDiv = document.getElementById('registrationReport'); // Report display div
-        const noReportDataMessage = document.getElementById('noReportDataMessage'); // No data message
-        const reportLoadingIndicator = document.getElementById('reportLoadingIndicator'); // Report loading indicator
+        const registrationReportDiv = document.getElementById('registrationReport');
+        const noReportDataMessage = document.getElementById('noReportDataMessage');
+        const reportLoadingIndicator = document.getElementById('reportLoadingIndicator');
 
-        // Admin UI elements (now for the floating panel)
-        const adminPanelContainer = document.getElementById('adminPanelContainer'); // The new floating admin panel
-        const toggleAdminPanelButton = document.getElementById('toggleAdminPanelButton'); // The question mark icon button
-        const toggleExportReportButton = document.getElementById('toggleExportReportButton'); // The new floating save button
+        // Admin UI elements
+        const adminPanelContainer = document.getElementById('adminPanelContainer');
+        const toggleAdminPanelButton = document.getElementById('toggleAdminPanelButton');
+        const toggleExportReportButton = document.getElementById('toggleExportReportButton');
         const adminPasswordInput = document.getElementById('adminPasswordInput');
-        const executeResetButton = document.getElementById('executeResetButton'); // The actual reset button inside the panel
 
 
         // Modal elements
@@ -448,27 +427,21 @@
                 console.log("Firebase authenticated. User ID:", currentUserId);
                 // Enable user-facing buttons when Firebase is ready
                 registerButton.disabled = false;
-                viewReportButton.disabled = false;
+                // Since viewReportButton is removed, no need to enable it here
                 // floating export button is always clickable once auth is ready, password check is inside its handler
-                // Admin button enablement is now handled by password input inside the panel
                 // After authentication, set up real-time queue data listener
                 setupQueueInfoListener();
             } else {
-                console.log("Firebase not authenticated. Signing in anonymously...");
+                console.log("Firebase not authenticated. Attempting sign-in anonymously...");
                 try {
-                    if (typeof __initial_auth_token !== 'undefined') {
-                        await signInWithCustomToken(auth, __initial_auth_token);
-                    } else {
-                        await signInAnonymously(auth);
-                    }
+                    // Always try anonymous sign-in first for public apps
+                    await signInAnonymously(auth);
                 } catch (error) {
                     console.error("Error signing in anonymously:", error);
                     showError("เกิดข้อผิดพลาดในการเข้าสู่ระบบ โปรดลองอีกครั้ง");
                     // Keep all buttons disabled if authentication fails
                     registerButton.disabled = true;
-                    viewReportButton.disabled = true;
-                    // Ensure the new executeResetButton is also disabled
-                    executeResetButton.disabled = true;
+                    // Since viewReportButton is removed, no need to disable it here
                 }
             }
         });
@@ -737,7 +710,7 @@
                         <table class="report-table">
                             <thead>
                                 <tr>
-                                    <th>คิวที่</th>
+                                    <th>ลำดับ</th>
                                     <th>รหัสนักศึกษา</th>
                                     <th>เวลาลงทะเบียน</th>
                                 </tr>
@@ -793,7 +766,7 @@
                 return;
             }
 
-            const headers = ["คิวที่", "รหัสนักศึกษา", "เวลาลงทะเบียน"];
+            const headers = ["ลำดับ", "รหัสนักศึกษา", "เวลาลงทะเบียน"];
             // Escape values that might contain commas or newlines
             const escapeCsv = (value) => {
                 if (value === null || value === undefined) return '';
@@ -820,7 +793,7 @@
 
             const a = document.createElement('a');
             a.href = url;
-            a.download = `รายงานคิวลงทะเบียน_${getCurrentDate()}.csv`;
+            a.download = `รายงานลำดับผู้เรียน_${getCurrentDate()}.csv`;
             document.body.appendChild(a); // Append to body to make it clickable in some browsers
             a.click();
             document.body.removeChild(a); // Clean up
@@ -886,14 +859,13 @@
                 // After reset, hide the admin panel and clear password
                 adminPanelContainer.classList.remove('admin-panel-visible');
                 adminPasswordInput.value = '';
-                executeResetButton.disabled = true;
             }
         }
 
 
         // --- Event Listeners ---
         registerButton.addEventListener('click', registerQueue);
-        viewReportButton.addEventListener('click', fetchRegistrationReport);
+        // Removed viewReportButton.addEventListener('click', fetchRegistrationReport);
         toggleExportReportButton.addEventListener('click', exportRegistrationReportToCsv); // Event listener for floating export button
 
         // Toggle Admin Panel visibility
@@ -904,21 +876,20 @@
             } else {
                 // Clear password and disable button when panel is hidden
                 adminPasswordInput.value = '';
-                executeResetButton.disabled = true;
             }
         });
 
-        // Admin password input listener (for the executeResetButton inside the panel)
-        adminPasswordInput.addEventListener('input', () => {
-            if (adminPasswordInput.value === ADMIN_PASSWORD && authReady) {
-                executeResetButton.disabled = false;
-            } else {
-                executeResetButton.disabled = true;
+        // Admin password input listener for Enter key
+        adminPasswordInput.addEventListener('keyup', (event) => {
+            if (event.key === 'Enter') {
+                if (adminPasswordInput.value === ADMIN_PASSWORD && authReady) {
+                    showConfirmationModal();
+                    event.preventDefault(); // Prevent default form submission if any
+                } else {
+                    showError("รหัสผ่านไม่ถูกต้อง"); // Provide feedback for incorrect password
+                }
             }
         });
-
-        // Execute Reset Button listener (shows confirmation modal)
-        executeResetButton.addEventListener('click', showConfirmationModal);
 
         // Modal button listeners
         confirmResetButton.addEventListener('click', resetAllQueuesToday);
