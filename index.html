@@ -113,15 +113,14 @@
         }
         .report-table {
             width: 100%;
-            max-width: 350px; /* Reduced max-width for each table */
+            /* max-width: 350px; No longer needed as width is controlled by column layout */
             border-collapse: collapse;
-            /* margin: 0 auto; Removed margin auto */
+            font-size: 0.85rem; /* Reduced font size */
         }
         .report-table th, .report-table td {
             border: 1px solid #e0e0e0;
             padding: 8px; /* Reduced padding */
             text-align: left;
-            font-size: 0.85rem; /* Reduced font size */
         }
         .report-table th {
             background-color: #f8f8f8;
@@ -323,11 +322,10 @@
             <div id="reportLoadingIndicator" class="report-loading-indicator">
                 กำลังโหลดรายงาน...
             </div>
-            <!-- Modified to display three columns for tables -->
+            <!-- Modified to display two columns for tables -->
             <div id="registrationReport" class="mt-4 flex flex-wrap -mx-2">
-                <div id="leftTableContainer" class="w-full sm:w-1/2 lg:w-1/3 px-2"></div>
-                <div id="middleTableContainer" class="w-full sm:w-1/2 lg:w-1/3 px-2"></div>
-                <div id="rightTableContainer" class="w-full sm:w-1/2 lg:w-1/3 px-2"></div>
+                <div id="leftTableContainer" class="w-full md:w-1/2 px-2"></div>
+                <div id="rightTableContainer" class="w-full md:w-1/2 px-2"></div>
                 <p id="noReportDataMessage" class="no-data-message hidden w-full px-2">ยังไม่มีข้อมูลการลงทะเบียนสำหรับวันนี้</p>
             </div>
         </div>
@@ -568,7 +566,6 @@
                 reportLoadingIndicator.classList.remove('hidden');
                 // Don't clear registrationReportDiv here, as it now contains containers
                 document.getElementById('leftTableContainer').innerHTML = '';
-                document.getElementById('middleTableContainer').innerHTML = ''; // New
                 document.getElementById('rightTableContainer').innerHTML = '';
                 noReportDataMessage.classList.add('hidden'); // Hide no data message
             } else {
@@ -649,10 +646,40 @@
         }
 
         /**
+         * Gets the user's current geographical position.
+         * @returns {Promise<{latitude: number, longitude: number}|null>} A promise that resolves with coordinates or null if failed.
+         */
+        async function getGeolocation() {
+            return new Promise((resolve) => {
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                            resolve({
+                                latitude: position.coords.latitude,
+                                longitude: position.coords.longitude
+                            });
+                        },
+                        (error) => {
+                            console.warn("Geolocation error:", error.message);
+                            resolve(null); // Return null on error or permission denied
+                        },
+                        {
+                            enableHighAccuracy: false, // Set to true if higher precision is needed (might be slower)
+                            timeout: 5000,
+                            maximumAge: 0
+                        }
+                    );
+                } else {
+                    console.warn("Geolocation is not supported by this browser.");
+                    resolve(null);
+                }
+            });
+        }
+
+        /**
          * Handles the queue registration process.
          */
         async function registerQueue() {
-            // This code should ideally not be called if the button is disabled, but serves as a fallback
             if (!authReady) {
                 showError("ระบบยังไม่พร้อม โปรดรอสักครู่และลองอีกครั้ง");
                 showLoading(false);
@@ -663,8 +690,7 @@
             showLoading(true);
 
             const studentId = studentIdInput.value.trim();
-            // Validate student ID length and ensure it's numeric
-            if (studentId.length !== 10 || isNaN(studentId)) { // Added isNaN check
+            if (studentId.length !== 10 || isNaN(studentId)) {
                 showError("กรุณากรอกรหัสนักศึกษาให้ครบ 10 หลัก และเป็นตัวเลขเท่านั้น");
                 showLoading(false);
                 return;
@@ -674,7 +700,6 @@
             const currentDate = getCurrentDate();
             const lastRegistrationDate = localStorage.getItem(`lastRegistrationDate_${appId}_${deviceId}`);
 
-            // Check if already registered today from this device using localStorage
             if (lastRegistrationDate === currentDate) {
                 showError("คุณได้ลงทะเบียนผู้เรียนไปแล้วสำหรับวันนี้ บนอุปกรณ์นี้");
                 showLoading(false);
@@ -694,20 +719,17 @@
                     lastResetDate = data.lastResetDate;
                 }
 
-                // If it's a new day, reset the queue number
                 if (lastResetDate !== currentDate) {
-                    highestQueueNumber = 0; // Reset for the new day
+                    highestQueueNumber = 0;
                 }
 
-                // Increment queue number, max 170
                 let newQueueNumber = highestQueueNumber + 1;
                 if (newQueueNumber > 170) {
-                    showError("คิวเต็มแล้วสำหรับวันนี้ โปรดลองใหม่ในวันพรหัสบดี"); // Changed to "วันพฤหัสบดี" for demo
+                    showError("คิวเต็มแล้วสำหรับวันนี้ โปรดลองใหม่ในวันพรหัสบดี");
                     showLoading(false);
                     return;
                 }
 
-                // Before assigning a queue, quickly check if this student ID is already registered today
                 const q = query(
                     collection(db, `artifacts/${appId}/public/data/queueRegistrations`),
                     where("studentId", "==", studentId),
@@ -720,27 +742,30 @@
                     return;
                 }
 
-                // Update the highest queue number and last reset date in Firestore
+                // Get geolocation data
+                const geo = await getGeolocation();
+                const latitude = geo ? geo.latitude : 'N/A';
+                const longitude = geo ? geo.longitude : 'N/A';
+
                 await setDoc(queueMetadataRef, {
                     highestQueueNumber: newQueueNumber,
                     lastResetDate: currentDate
-                }, { merge: true }); // Use merge to avoid overwriting other fields
+                }, { merge: true });
 
-                // Add new registration record
                 await addDoc(collection(db, `artifacts/${appId}/public/data/queueRegistrations`), {
                     studentId: studentId,
                     queueNumber: newQueueNumber,
                     registrationDate: currentDate,
                     deviceId: deviceId,
-                    timestamp: serverTimestamp() // Add server-generated timestamp
+                    timestamp: serverTimestamp(),
+                    latitude: latitude,
+                    longitude: longitude
                 });
 
-                // Update localStorage to prevent duplicate registration today from this device
                 localStorage.setItem(`lastRegistrationDate_${appId}_${deviceId}`, currentDate);
 
-                showMessage(`คุณได้รับคิวหมายเลข: ${newQueueNumber}`); // This message will be styled by highlight-success-message
-                studentIdInput.value = ''; // Clear input field
-                // Automatically refresh report after successful registration
+                showMessage(`คุณได้รับคิวหมายเลข: ${newQueueNumber}`);
+                studentIdInput.value = '';
                 fetchRegistrationReport();
             } catch (e) {
                 console.error("Error registering queue:", e);
@@ -761,7 +786,7 @@
             }
 
             showReportLoading(true);
-            noReportDataMessage.classList.add('hidden'); // Hide "no data" message initially
+            noReportDataMessage.classList.add('hidden');
 
             const currentDate = getCurrentDate();
             try {
@@ -771,36 +796,30 @@
                 );
                 const querySnapshot = await getDocs(q);
 
-                currentRegistrationsData = []; // Clear previous data
+                currentRegistrationsData = [];
                 querySnapshot.forEach((doc) => {
                     const data = doc.data();
                     currentRegistrationsData.push(data);
                 });
 
-                // Sort registrations by queueNumber
                 currentRegistrationsData.sort((a, b) => a.queueNumber - b.queueNumber);
 
                 // Get the table containers
                 const leftTableContainer = document.getElementById('leftTableContainer');
-                const middleTableContainer = document.getElementById('middleTableContainer'); // New
                 const rightTableContainer = document.getElementById('rightTableContainer');
 
                 // Clear previous content
                 leftTableContainer.innerHTML = '';
-                middleTableContainer.innerHTML = ''; // New
                 rightTableContainer.innerHTML = '';
 
 
                 if (currentRegistrationsData.length > 0) {
-                    const total = currentRegistrationsData.length;
-                    const thirdSize = Math.ceil(total / 3);
-
-                    const firstThird = currentRegistrationsData.slice(0, thirdSize);
-                    const secondThird = currentRegistrationsData.slice(thirdSize, thirdSize * 2);
-                    const thirdThird = currentRegistrationsData.slice(thirdSize * 2);
+                    const midpoint = Math.ceil(currentRegistrationsData.length / 2);
+                    const leftHalf = currentRegistrationsData.slice(0, midpoint);
+                    const rightHalf = currentRegistrationsData.slice(midpoint);
 
                     const generateTableHtml = (data) => {
-                        if (data.length === 0) return ''; // Return empty if no data for this half
+                        if (data.length === 0) return '';
 
                         let tableHtml = `
                             <table class="report-table">
@@ -809,6 +828,8 @@
                                         <th>ลำดับ</th>
                                         <th>รหัสนักศึกษา</th>
                                         <th>เวลาลงทะเบียน</th>
+                                        <th>ละติจูด</th>
+                                        <th>ลองจิจูด</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -821,6 +842,8 @@
                                     <td>${reg.queueNumber}</td>
                                     <td>${reg.studentId}</td>
                                     <td>${registrationTime}</td>
+                                    <td>${typeof reg.latitude === 'number' ? reg.latitude.toFixed(4) : reg.latitude}</td>
+                                    <td>${typeof reg.longitude === 'number' ? reg.longitude.toFixed(4) : reg.longitude}</td>
                                 </tr>
                             `;
                         });
@@ -831,23 +854,19 @@
                         return tableHtml;
                     };
 
-                    const leftTableHtml = generateTableHtml(firstThird);
-                    const middleTableHtml = generateTableHtml(secondThird); // New
-                    const rightTableHtml = generateTableHtml(thirdThird);
+                    const leftTableHtml = generateTableHtml(leftHalf);
+                    const rightTableHtml = generateTableHtml(rightHalf);
 
-                    if (firstThird.length > 0) {
+                    if (leftHalf.length > 0) {
                         leftTableContainer.innerHTML = leftTableHtml;
                     }
-                    if (secondThird.length > 0) { // Only append middle table if there's data for it
-                        middleTableContainer.innerHTML = middleTableHtml;
-                    }
-                    if (thirdThird.length > 0) { // Only append right table if there's data for it
+                    if (rightHalf.length > 0) {
                         rightTableContainer.innerHTML = rightTableHtml;
                     }
 
-                    noReportDataMessage.classList.add('hidden'); // Ensure hidden if there's data
+                    noReportDataMessage.classList.add('hidden');
                 } else {
-                    noReportDataMessage.classList.remove('hidden'); // Show no data message if no registrations
+                    noReportDataMessage.classList.remove('hidden');
                 }
             } catch (e) {
                 console.error("Error fetching registration report:", e);
@@ -863,11 +882,11 @@
         function exportRegistrationReportToCsv() {
             if (!currentRegistrationsData || currentRegistrationsData.length === 0) {
                 showError("ไม่มีข้อมูลรายงานให้ส่งออก");
-                hideAdminPanel(); // Hide panel if no data
+                hideAdminPanel();
                 return;
             }
 
-            const headers = ["ลำดับ", "รหัสนักศึกษา", "เวลาลงทะเบียน"];
+            const headers = ["ลำดับ", "รหัสนักศึกษา", "เวลาลงทะเบียน", "ละติจูด", "ลองจิจูด"];
             // Escape values that might contain commas or newlines
             const escapeCsv = (value) => {
                 if (value === null || value === undefined) return '';
@@ -881,10 +900,16 @@
             const rows = currentRegistrationsData.map(reg => {
                 const registrationTime = reg.timestamp && reg.timestamp.toDate ?
                     reg.timestamp.toDate().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'N/A';
+                
+                const latitude = typeof reg.latitude === 'number' ? reg.latitude.toFixed(4) : reg.latitude;
+                const longitude = typeof reg.longitude === 'number' ? reg.longitude.toFixed(4) : reg.longitude;
+
                 return [
                     escapeCsv(reg.queueNumber),
                     escapeCsv(reg.studentId),
-                    escapeCsv(registrationTime)
+                    escapeCsv(registrationTime),
+                    escapeCsv(latitude),
+                    escapeCsv(longitude)
                 ].join(',');
             });
 
@@ -1040,6 +1065,9 @@
         // Modal button listeners
         confirmResetButton.addEventListener('click', async () => {
             await resetAllQueuesToday();
+            // After reset, ensure admin session is cleared and buttons are hidden
+            isAdminLoggedIn = false;
+            toggleAdminActionButtons(false);
         });
         cancelResetButton.addEventListener('click', hideConfirmationModal);
 
