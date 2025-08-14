@@ -576,8 +576,10 @@
 
 
         // Firebase configuration (from your Firebase project)
+        // IMPORTANT: Replace these with your actual Firebase project's configuration.
+        // You can find this in your Firebase project settings -> Project settings -> General -> Your apps -> Web app.
         const firebaseConfig = {
-            apiKey: "AIzaSyA7OgbR00tGMjrQXAOtLUX34y8sXulK-5s",
+            apiKey: "AIzaSyA7OgbR00tGMjrQXAOtLUX34y8sXulK-5s", // <-- REPLACE THIS WITH YOUR API KEY
             authDomain: "queue-app-72e53.firebaseapp.com",
             projectId: "queue-app-72e53",
             storageBucket: "queue-app-72e53.firebasestorage.app",
@@ -1275,12 +1277,15 @@
          * Saves pre-registered student IDs from the textarea to Firestore.
          */
         async function savePreRegisteredIds() {
+            console.log("savePreRegisteredIds function called."); // Add this for debugging
+
             hideMessages(); // Clear all messages
             preRegSaveErrorDisplayModal.classList.add('hidden'); // Hide specific pre-reg save error
 
             const idsToSaveText = preRegisteredIdsTextareaModal.value.trim();
             if (!idsToSaveText) {
                 showPreRegSaveErrorModal("กรุณากรอกรหัสนักศึกษาก่อนบันทึก");
+                console.log("Validation failed: No IDs to save.");
                 return;
             }
 
@@ -1291,6 +1296,7 @@
 
             if (idsToSave.length === 0) {
                 showPreRegSaveErrorModal("ไม่พบรหัสนักศึกษาที่ถูกต้อง กรุณาตรวจสอบรูปแบบ (10 หลัก, ตัวเลข)");
+                console.log("Validation failed: Parsed IDs list is empty.");
                 return;
             }
 
@@ -1298,6 +1304,7 @@
             const invalidIds = idsToSave.filter(id => id.length !== 10 || isNaN(id));
             if (invalidIds.length > 0) {
                 showPreRegSaveErrorModal(`มีรหัสที่ไม่ถูกต้อง: ${invalidIds.join(', ')}. โปรดตรวจสอบ (ต้องเป็นตัวเลข 10 หลัก)`);
+                console.log("Validation failed: Invalid ID format detected.");
                 return;
             }
 
@@ -1311,6 +1318,7 @@
                     deleteBatch.delete(docSnap.ref);
                 });
                 await deleteBatch.commit();
+                console.log("Existing pre-registered IDs cleared.");
 
                 // Add new pre-registered IDs
                 const addBatch = writeBatch(db);
@@ -1319,13 +1327,21 @@
                     addBatch.set(doc(preRegCollectionRef, id), { exists: true, addedBy: currentUserId, timestamp: serverTimestamp() });
                 });
                 await addBatch.commit();
+                console.log("New pre-registered IDs added successfully.");
 
                 showMessage(`นำเข้าข้อมูลสำเร็จ: บันทึกรายชื่อนักศึกษาจำนวน ${idsToSave.length} รายการแล้ว`); // Updated success message
                 hideImportStudentIdsModal(); // Hide import modal after successful save
                 // No need to hide admin panel or toggle buttons here, as they are already visible
             } catch (e) {
                 console.error("Error saving pre-registered IDs:", e);
-                showPreRegSaveErrorModal("เกิดข้อผิดพลาดในการบันทึกรายชื่อนักศึกษา โปรดลองอีกครั้ง");
+                // Provide more specific error message from Firebase if available
+                let errorMessage = "เกิดข้อผิดพลาดในการบันทึกรายชื่อนักศึกษา โปรดลองอีกครั้ง";
+                if (e.code && e.message) {
+                    errorMessage = `เกิดข้อผิดพลาดจาก Firebase: ${e.code} - ${e.message}`;
+                } else if (e.message) {
+                    errorMessage = `เกิดข้อผิดพลาด: ${e.message}`;
+                }
+                showPreRegSaveErrorModal(errorMessage);
             } finally {
                 showLoading(false);
             }
@@ -1547,6 +1563,14 @@
                 await batch.commit();
             } catch (e) {
                 console.error("Error updating pre-registered ID:", e);
+                // Provide more specific error message from Firebase if available
+                let errorMessage = "เกิดข้อผิดพลาดในการแก้ไขรายชื่อนักศึกษา โปรดลองอีกครั้ง";
+                if (e.code && e.message) {
+                    errorMessage = `เกิดข้อผิดพลาดจาก Firebase: ${e.code} - ${e.message}`;
+                } else if (e.message) {
+                    errorMessage = `เกิดข้อผิดพลาด: ${e.message}`;
+                }
+                showPreRegSaveErrorModal(errorMessage); // Using the same modal for all pre-reg errors
                 throw e; // Re-throw to be caught by calling function
             } finally {
                 showLoading(false);
