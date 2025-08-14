@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ระบบคิวเข้าห้องเรียน</title>
+    <title>CA033 : Squid Game</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- เพิ่ม Font Awesome สำหรับไอคอน -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
@@ -64,7 +64,7 @@
         }
         /* New style for highlighted success message */
         .highlight-success-message {
-            font-size: 2.5rem; /* Approximately 2-3x of 1.1rem */
+            font-size: 3.75rem; /* Increased size - text-6xl for 2-3x of 1.1rem, larger than 2.5rem */
             font-weight: 700; /* Bold */
             color: #dc2626; /* red-600 */
             background-color: transparent !important; /* Override default message-box background */
@@ -94,7 +94,7 @@
             background-color: #ecfdf5;
             border: 1px solid #d1fae5;
             border-radius: 10px;
-            /* font-size will be controlled by the specific p tag and span within */
+            /* font-size for this specific p tag is set below in HTML to text-2xl */
             font-weight: 500;
             color: #047857;
         }
@@ -296,7 +296,7 @@
 
         <div class="mb-4 text-left">
             <label for="studentIdInput" class="block text-gray-700 text-sm font-medium mb-2">รหัสนักศึกษา:</label>
-            <input type="text" id="studentIdInput" placeholder="กรอกรหัสนักศึกษาของคุณ" minlength="10" maxlength="10" class="focus:ring-2 focus:ring-green-300 focus:border-transparent">
+            <input type="number" id="studentIdInput" placeholder="กรอกรหัสนักศึกษาของคุณ" minlength="10" maxlength="10" pattern="\d*" class="focus:ring-2 focus:ring-green-300 focus:border-transparent">
         </div>
 
         <button id="registerButton" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1" disabled>
@@ -313,9 +313,7 @@
             กำลังประมวลผล... โปรดรอสักครู่
         </div>
 
-        <div id="currentQueueInfo" class="current-queue-info">
-            <p class="text-3xl font-bold text-green-700">จำนวนของนักศึกษาที่เช็คชื่อแล้ววันนี้: <span id="highestQueueNumberDisplay" class="font-bold text-green-700">--</span></p>
-        </div>
+        <!-- Moved this section below the report table -->
 
         <!-- ส่วนสำหรับรายงานการลงทะเบียน -->
         <div class="report-section">
@@ -328,6 +326,12 @@
                 <p id="noReportDataMessage" class="no-data-message hidden">ยังไม่มีข้อมูลการลงทะเบียนสำหรับวันนี้</p>
             </div>
         </div>
+
+        <!-- Moved here: Display of current registered students -->
+        <div id="currentQueueInfo" class="current-queue-info">
+            <p class="text-2xl font-bold text-green-700">จำนวนของนักศึกษาที่เช็คชื่อแล้ววันนี้: <span id="highestQueueNumberDisplay" class="font-bold text-green-700">--</span></p>
+        </div>
+
 
         <!-- ส่วนควบคุมสำหรับผู้ดูแลระบบ (Placeholder for previous admin section) -->
         <div class="admin-section">
@@ -394,7 +398,6 @@
         // UI elements
         const studentIdInput = document.getElementById('studentIdInput');
         const registerButton = document.getElementById('registerButton');
-        // Removed viewReportButton, no longer needed directly
         const messageDisplay = document.getElementById('messageDisplay');
         const errorDisplay = document.getElementById('errorDisplay');
         const loadingIndicator = document.getElementById('loadingIndicator');
@@ -601,9 +604,9 @@
             showLoading(true);
 
             const studentId = studentIdInput.value.trim();
-            // Validate student ID length here
-            if (studentId.length !== 10) {
-                showError("กรุณากรอกรหัสนักศึกษาให้ครบ 10 หลัก");
+            // Validate student ID length and ensure it's numeric
+            if (studentId.length !== 10 || isNaN(studentId)) { // Added isNaN check
+                showError("กรุณากรอกรหัสนักศึกษาให้ครบ 10 หลัก และเป็นตัวเลขเท่านั้น");
                 showLoading(false);
                 return;
             }
