@@ -1314,31 +1314,32 @@
 
             try {
                 showLoading(true);
-                // Clear existing pre-registered IDs
                 const preRegCollectionRef = collection(db, `artifacts/${appId}/public/data/preRegisteredStudentIds`);
-                const existingDocsSnapshot = await getDocs(preRegCollectionRef);
-                const deleteBatch = writeBatch(db);
-                existingDocsSnapshot.forEach(docSnap => {
-                    deleteBatch.delete(docSnap.ref);
-                });
-                await deleteBatch.commit();
-                console.log("Existing pre-registered IDs cleared.");
-
-                // Add new pre-registered IDs
                 const addBatch = writeBatch(db);
-                idsToSave.forEach(id => {
-                    // Document ID is the student ID, content is just a marker
-                    addBatch.set(doc(preRegCollectionRef, id), { exists: true, addedBy: currentUserId, timestamp: serverTimestamp() });
-                });
-                await addBatch.commit();
-                console.log("New pre-registered IDs added successfully.");
+                let addedCount = 0; // Track newly added IDs
+                let updatedCount = 0; // Track updated IDs (already existed)
 
-                showMessage(`นำเข้าข้อมูลสำเร็จ: บันทึกรายชื่อนักศึกษาจำนวน ${idsToSave.length} รายการแล้ว`); // Updated success message
+                for (const id of idsToSave) {
+                    const docRef = doc(preRegCollectionRef, id);
+                    const docSnap = await getDoc(docRef); // Check if ID already exists
+
+                    if (docSnap.exists()) {
+                        // If exists, update its timestamp/addedBy (effectively "stacking" by keeping it)
+                        addBatch.set(docRef, { exists: true, addedBy: currentUserId, timestamp: serverTimestamp() }, { merge: true });
+                        updatedCount++;
+                    } else {
+                        // If not exists, add as new
+                        addBatch.set(docRef, { exists: true, addedBy: currentUserId, timestamp: serverTimestamp() });
+                        addedCount++;
+                    }
+                }
+                await addBatch.commit();
+                console.log(`Pre-registered IDs added: ${addedCount}, updated: ${updatedCount}.`);
+
+                showMessage(`นำเข้าข้อมูลสำเร็จ: เพิ่มนักศึกษา ${addedCount} รายการ, อัปเดต ${updatedCount} รายการ`);
                 hideImportStudentIdsModal(); // Hide import modal after successful save
-                // No need to hide admin panel or toggle buttons here, as they are already visible
             } catch (e) {
                 console.error("Error saving pre-registered IDs:", e);
-                // Provide more specific error message from Firebase if available
                 let errorMessage = "เกิดข้อผิดพลาดในการบันทึกรายชื่อนักศึกษา โปรดลองอีกครั้ง";
                 if (e.code && e.message) {
                     errorMessage = `เกิดข้อผิดพลาดจาก Firebase: ${e.code} - ${e.message}`;
