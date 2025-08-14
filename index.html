@@ -186,13 +186,12 @@
         #adminPanelContainer {
             position: fixed;
             bottom: 20px;
-            left: 20px; /* Place it on the left, near the export button */
+            left: 80px; /* Adjusted position to be slightly to the right of export button */
             z-index: 998; /* Below the toggle button, but above content */
             background-color: #fffbeb;
             padding: 15px;
             border-radius: 10px;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-            /* Initially hidden, will be made visible by JS on demand */
             display: none; /* Controlled by JS now */
             flex-direction: column;
             gap: 10px; /* Space between elements */
@@ -202,8 +201,6 @@
             opacity: 1; /* Always visible opacity when display is not 'none' */
             visibility: visible; /* Always visible when display is not 'none' */
         }
-
-        /* No admin-panel-visible class needed for toggling visibility, only display property */
 
         .admin-password-input {
             padding: 8px 12px; /* Smaller padding */
@@ -232,8 +229,8 @@
             color: #fff; /* Default white icon */
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
             transition: background-color 0.3s ease, transform 0.2s ease, opacity 0.3s ease;
-            opacity: 0; /* Initially hidden */
-            pointer-events: none; /* Make it unclickable when invisible */
+            opacity: 1; /* Always visible */
+            pointer-events: auto; /* Always clickable */
             position: fixed; /* Common to all floating buttons */
             z-index: 999;
             transform: translateY(0); /* Ensure no initial transform */
@@ -243,7 +240,6 @@
         }
 
         /* Specific colors and positions for floating buttons */
-        /* Removed #toggleAdminPanelButton styles */
 
         #toggleExportReportButton { /* Save button (left side) */
             background-color: #9ca3af; /* A subtle blue-gray */
@@ -265,22 +261,8 @@
             background-color: #dc2626; /* Darker red on hover */
         }
 
-        /* Make all floating buttons visible on body hover */
-        body:hover .floating-icon-button {
-            opacity: 1;
-            pointer-events: auto; /* Make them clickable when visible */
-        }
-
-        /* If admin panel is open, ensure all buttons are visible */
-        /* This rule is simplified as admin panel display is now JS controlled */
-        #adminPanelContainer.admin-panel-visible ~ #fixedExportButtonContainer #toggleExportReportButton,
-        #adminPanelContainer.admin-panel-visible ~ #fixedResetButtonContainer #resetQueueButton {
-             opacity: 1;
-             pointer-events: auto;
-        }
-
-        /* Ensure floating buttons are visible when admin panel is shown */
-        /* This is tricky with siblings, so the JS will handle making buttons visible */
+        /* No need for body:hover rules anymore as buttons are always visible */
+        /* No need for adminPanelContainer.admin-panel-visible rules as display is managed by JS directly */
     </style>
 </head>
 <body>
@@ -351,13 +333,6 @@
         <input type="password" id="adminPasswordInput" placeholder="" class="admin-password-input focus:ring-2 focus:ring-yellow-300 focus:border-transparent">
     </div>
 
-    <!-- Removed Floating Toggle Button (Question Mark Icon) Container -->
-    <!-- <div id="fixedAdminToggleButtonContainer">
-        <button id="toggleAdminPanelButton" class="floating-icon-button">
-            <i class="fas fa-question-circle"></i> Icon for question mark
-        </button>
-    </div> -->
-
     <!-- Floating Export Button (Save Icon) -->
     <div id="fixedExportButtonContainer">
         <button id="toggleExportReportButton" class="floating-icon-button">
@@ -412,7 +387,6 @@
 
         // Admin UI elements
         const adminPanelContainer = document.getElementById('adminPanelContainer');
-        // const toggleAdminPanelButton = document.getElementById('toggleAdminPanelButton'); // Removed
         const toggleExportReportButton = document.getElementById('toggleExportReportButton');
         const adminPasswordInput = document.getElementById('adminPasswordInput');
         const resetQueueButton = document.getElementById('resetQueueButton'); // Get the new reset button
@@ -958,17 +932,17 @@
         });
 
 
-        // Admin password input listener for Enter key (still works as an alternative for reset)
-        adminPasswordInput.addEventListener('keyup', (event) => {
-            if (event.key === 'Enter') {
-                if (adminPasswordInput.value === ADMIN_PASSWORD && authReady) {
-                    showConfirmationModal();
-                    event.preventDefault(); // Prevent default form submission if any
-                } else {
-                    showError("รหัสผ่านไม่ถูกต้อง"); // Provide feedback for incorrect password
-                }
-            }
-        });
+        // Admin password input listener for Enter key (REMOVED: this was causing the confusion)
+        // adminPasswordInput.addEventListener('keyup', (event) => {
+        //     if (event.key === 'Enter') {
+        //         if (adminPasswordInput.value === ADMIN_PASSWORD && authReady) {
+        //             showConfirmationModal();
+        //             event.preventDefault(); // Prevent default form submission if any
+        //         } else {
+        //             showError("รหัสผ่านไม่ถูกต้อง"); // Provide feedback for incorrect password
+        //         }
+        //     }
+        // });
 
         // Modal button listeners
         confirmResetButton.addEventListener('click', resetAllQueuesToday);
