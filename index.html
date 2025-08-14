@@ -427,13 +427,13 @@
     <div class="container">
         <!-- New Headline -->
         <p class="text-xl font-semibold text-gray-700 mb-2">CA033 : Idea Generation Workshop and Agile Management</p>
-        <h1 class="text-3xl font-bold text-gray-800 mb-6">ระบบรับหมายเลขผู้เรียน (เช็คชื่อ)</h1>
+        <h1 class="text-3xl font-bold text-gray-800 mb-6">ระบบเช็คชื่อ และ รับหมายเลขผู้เรียน</h1>
         <p class="text-gray-600 mb-1">กรอกรหัสนักศึกษา 10 หลัก</p>
-        <p class="text-gray-600 mb-6">เพื่อรับหมายเลขประจำตัวผู้เรียนประจำวันนี้</p>
+        <p class="text-gray-600 mb-6">เพื่อรับหมายเลขประจำตัวผู้เรียนประจำวันนี้ เพื่อใช้ในการทำ Workshop</p>
 
         <div class="mb-4 text-left">
             <label for="studentIdInput" class="block text-gray-700 text-sm font-medium mb-2">รหัสนักศึกษา:</label>
-            <input type="number" id="studentIdInput" placeholder="กรอกรหัสนักศึกษาของคุณ เช่น 1660312345" minlength="10" maxlength="10" pattern="\d*" class="focus:ring-2 focus:ring-green-300 focus:border-transparent">
+            <input type="number" id="studentIdInput" placeholder="กรอกรหัสนักศึกษาของคุณ เช่น 1660312345, 1650354321" minlength="10" maxlength="10" pattern="\d*" class="focus:ring-2 focus:ring-green-300 focus:border-transparent">
         </div>
 
         <button id="registerButton" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1" disabled>
@@ -575,7 +575,7 @@
         // Import Firebase modules
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, query, where, addDoc, serverTimestamp, getDocs, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, query, where, addDoc, serverTimestamp, getDocs, deleteDoc, writeBatch, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js";
 
 
@@ -1000,29 +1000,44 @@
             }
 
             try {
-                const queueMetadataRef = doc(db, `artifacts/${appId}/public/data/queueMetadata`, 'currentQueue');
-                const queueMetadataSnap = await getDoc(queueMetadataRef);
+                // Use a transaction to ensure atomic increment of queue number
+                const newQueueNumber = await runTransaction(db, async (transaction) => {
+                    const queueMetadataRef = doc(db, `artifacts/${appId}/public/data/queueMetadata`, 'currentQueue');
+                    const queueMetadataDoc = await transaction.get(queueMetadataRef);
 
-                let highestQueueNumber = 0;
-                let lastResetDate = null;
+                    let currentHighestQueueNumber = 0;
+                    let lastResetDateInDb = null;
 
-                if (queueMetadataSnap.exists()) {
-                    const data = queueMetadataSnap.data();
-                    highestQueueNumber = data.highestQueueNumber || 0;
-                    lastResetDate = data.lastResetDate;
-                }
+                    if (queueMetadataDoc.exists()) {
+                        const data = queueMetadataDoc.data();
+                        currentHighestQueueNumber = data.highestQueueNumber || 0;
+                        lastResetDateInDb = data.lastResetDate;
+                    }
 
-                if (lastResetDate !== currentDate) {
-                    highestQueueNumber = 0;
-                }
+                    // Reset if it's a new day
+                    if (lastResetDateInDb !== currentDate) {
+                        currentHighestQueueNumber = 0;
+                    }
 
-                let newQueueNumber = highestQueueNumber + 1;
-                if (newQueueNumber > 170) {
-                    showError("คิวเต็มแล้วสำหรับวันนี้ โปรดลองใหม่ในวันพฤหัสบดี");
-                    showLoading(false);
-                    return;
-                }
+                    const nextQueueNumber = currentHighestQueueNumber + 1;
 
+                    // Check queue limit
+                    if (nextQueueNumber > 170) {
+                        throw new Error("คิวเต็มแล้วสำหรับวันนี้ โปรดลองใหม่ในวันพฤหัสบดี"); // Throw error to abort transaction
+                    }
+
+                    // Update highestQueueNumber in metadata within the transaction
+                    transaction.set(queueMetadataRef, {
+                        highestQueueNumber: nextQueueNumber,
+                        lastResetDate: currentDate
+                    }, { merge: true });
+
+                    return nextQueueNumber; // Return the new unique number
+                });
+
+                // Check if student ID has already registered for today outside of the transaction
+                // (This check should ideally be done before the transaction if possible,
+                // but given the pre-reg check and unique queue number assignment, it's fine here)
                 const q = query(
                     collection(db, `artifacts/${appId}/public/data/queueRegistrations`),
                     where("studentId", "==", studentId),
@@ -1040,11 +1055,7 @@
                 const latitude = geo ? geo.latitude : 'N/A';
                 const longitude = geo ? geo.longitude : 'N/A';
 
-                await setDoc(queueMetadataRef, {
-                    highestQueueNumber: newQueueNumber,
-                    lastResetDate: currentDate
-                }, { merge: true });
-
+                // Add the new registration record with the obtained unique queue number
                 await addDoc(collection(db, `artifacts/${appId}/public/data/queueRegistrations`), {
                     studentId: studentId,
                     queueNumber: newQueueNumber,
@@ -1061,8 +1072,17 @@
                 studentIdInput.value = '';
                 fetchRegistrationReport();
             } catch (e) {
-                console.error("Error registering queue:", e);
-                showError("เกิดข้อผิดพลาดในการลงทะเบียนคิว โปรดลองอีกครั้ง");
+                console.error("Error in transaction or registration:", e);
+                // Differentiate error messages based on what caused the catch
+                if (e.message === "คิวเต็มแล้วสำหรับวันนี้ โปรดลองใหม่ในวันพฤหัสบดี") {
+                    showError(e.message);
+                } else if (e.code === 'ABORTED') {
+                    // This often means a transaction retry failed due to contention
+                    showError("เกิดข้อผิดพลาดในการลงทะเบียนคิว: มีผู้ใช้ลงทะเบียนพร้อมกัน กรุณาลองอีกครั้ง");
+                }
+                else {
+                    showError("เกิดข้อผิดพลาดในการลงทะเบียนคิว โปรดลองอีกครั้ง");
+                }
             } finally {
                 showLoading(false);
             }
@@ -1487,11 +1507,11 @@
                     return;
                 }
 
-                showConfirmationModal(`คุณแน่ใจหรือไม่ที่ต้องการเปลี่ยนรหัส ${originalId} เป็น ${newId}?`, async () => {
+                showConfirmationModal(`คุณแน่ใจหรือไม่ที่ต้องการเปลี่ยนรหัสนักศึกษา ${originalId} เป็น ${newId}?`, async () => {
                     await updatePreRegisteredId(originalId, newId);
                     await fetchPreRegisteredIds(); // Re-fetch data to update table
                     renderPreRegisteredIdsTable(); // Re-render table
-                    showMessage(`แก้ไขรหัส ${originalId} เป็น ${newId} สำเร็จ`);
+                    showMessage(`แก้ไขรหัสนักศึกษา ${originalId} เป็น ${newId} สำเร็จ`);
                 });
             });
 
