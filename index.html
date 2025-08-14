@@ -215,7 +215,7 @@
             width: 100%; /* Ensure it takes full width of its container */
             box-sizing: border-box; /* Include padding/border in width */
         }
-        .admin-section-content {
+        .admin-section-content { /* This class is now used only for the import modal content */
             margin-top: 20px;
             padding-top: 15px;
             border-top: 1px solid #e0e0e0;
@@ -297,6 +297,22 @@
             background-color: #6b7280; /* Darker gray on hover */
         }
 
+        #fixedImportButtonContainer { /* New Import button container */
+            position: fixed;
+            bottom: 20px;
+            left: 140px; /* Positioned to the right of Export button */
+            z-index: 999;
+            display: none; /* Hidden by default, shown by JS */
+        }
+        #toggleImportIdsButton { /* Specific style for Import button */
+            background-color: #10b981; /* Green color for import */
+            color: #fff;
+        }
+        #toggleImportIdsButton:hover {
+            background-color: #059669; /* Darker green on hover */
+        }
+
+
         #fixedResetButtonContainer {
             position: fixed;
             bottom: 20px;
@@ -365,7 +381,7 @@
         </div>
     </div>
 
-    <!-- Custom Confirmation Modal -->
+    <!-- Custom Confirmation Modal (For Reset) -->
     <div id="confirmationModal" class="modal">
         <div class="modal-content">
             <p class="text-lg font-semibold mb-4">ต้องการดำเนินการต่อ?</p>
@@ -376,17 +392,23 @@
         </div>
     </div>
 
-    <!-- Floating Admin Panel (initially hidden by display: none) -->
+    <!-- Floating Admin Panel (only for Passphrase input) -->
     <div id="adminPanelContainer">
         <input type="password" id="adminPasswordInput" placeholder="Passphrase" class="admin-password-input focus:ring-2 focus:ring-yellow-300 focus:border-transparent">
         <span id="passwordErrorDisplay" class="password-error-message hidden">Passphrase ไม่ถูกต้อง</span>
+    </div>
 
-        <div id="preRegAdminSection" class="admin-section-content hidden">
-            <h3 class="text-md font-semibold text-gray-700 mb-2">จัดการรายชื่อนักศึกษาล่วงหน้า</h3>
+    <!-- New Modal for Importing Student IDs -->
+    <div id="importStudentIdsModal" class="modal">
+        <div class="modal-content">
+            <h3 class="text-xl font-semibold text-gray-700 mb-2">จัดการรายชื่อนักศึกษาล่วงหน้า</h3>
             <p class="text-xs text-gray-500 mb-2">กรอกรหัสนักศึกษา 10 หลักคั่นด้วยคอมมา หรือขึ้นบรรทัดใหม่</p>
-            <textarea id="preRegisteredIdsTextarea" placeholder="เช่น 1234567890, 0987654321&#10;1122334455"></textarea>
-            <button id="savePreRegisteredIdsButton" class="bg-blue-600 hover:bg-blue-700 text-white">บันทึก Passphrase (สำหรับนักศึกษา)</button>
-            <span id="preRegSaveErrorDisplay" class="password-error-message hidden"></span>
+            <textarea id="preRegisteredIdsTextareaModal" placeholder="เช่น 1234567890, 0987654321&#10;1122334455"></textarea>
+            <div class="modal-buttons">
+                <button id="confirmImportIdsButton" class="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg">ยืนยันนำเข้ารายชื่อ</button>
+                <button id="cancelImportIdsButton" class="bg-gray-400 hover:bg-gray-500 text-white py-2 px-4 rounded-lg">ยกเลิก</button>
+            </div>
+            <span id="preRegSaveErrorDisplayModal" class="password-error-message hidden"></span>
         </div>
     </div>
 
@@ -401,6 +423,13 @@
     <div id="fixedExportButtonContainer">
         <button id="toggleExportReportButton" class="floating-icon-button">
             <i class="fas fa-save"></i> <!-- Icon for save -->
+        </button>
+    </div>
+
+    <!-- New Floating Import Button (Import Icon) -->
+    <div id="fixedImportButtonContainer">
+        <button id="toggleImportIdsButton" class="floating-icon-button">
+            <i class="fas fa-file-import"></i> <!-- Icon for import -->
         </button>
     </div>
 
@@ -453,17 +482,21 @@
         const adminPanelContainer = document.getElementById('adminPanelContainer');
         const toggleAdminPanelButton = document.getElementById('toggleAdminPanelButton'); // Get the question mark button
         const toggleExportReportButton = document.getElementById('toggleExportReportButton');
+        const toggleImportIdsButton = document.getElementById('toggleImportIdsButton'); // New: Import button
         const adminPasswordInput = document.getElementById('adminPasswordInput');
-        const passwordErrorDisplay = document.getElementById('passwordErrorDisplay'); // New: Get password error display
+        const passwordErrorDisplay = document.getElementById('passwordErrorDisplay');
         const resetQueueButton = document.getElementById('resetQueueButton');
-        const preRegAdminSection = document.getElementById('preRegAdminSection'); // New
-        const preRegisteredIdsTextarea = document.getElementById('preRegisteredIdsTextarea'); // New
-        const savePreRegisteredIdsButton = document.getElementById('savePreRegisteredIdsButton'); // New
-        const preRegSaveErrorDisplay = document.getElementById('preRegSaveErrorDisplay'); // New
+
+        // New Import Modal elements
+        const importStudentIdsModal = document.getElementById('importStudentIdsModal');
+        const preRegisteredIdsTextareaModal = document.getElementById('preRegisteredIdsTextareaModal');
+        const confirmImportIdsButton = document.getElementById('confirmImportIdsButton');
+        const cancelImportIdsButton = document.getElementById('cancelImportIdsButton');
+        const preRegSaveErrorDisplayModal = document.getElementById('preRegSaveErrorDisplayModal');
 
 
-        // Modal elements
-        const confirmationModal = document.getElementById('confirmationModal');
+        // Modal elements (existing for reset confirmation)
+        const confirmationModal = document.getElementById('confirmationModal'); // This is for Reset confirmation
         const confirmResetButton = document.getElementById('confirmResetButton');
         const cancelResetButton = document.getElementById('cancelResetButton');
 
@@ -537,7 +570,7 @@
             messageDisplay.classList.add('message-box'); // Apply default message-box styles first
             errorDisplay.classList.add('hidden'); // Hide any error messages
             passwordErrorDisplay.classList.add('hidden'); // Hide password error
-            preRegSaveErrorDisplay.classList.add('hidden'); // Hide pre-reg save error
+            preRegSaveErrorDisplayModal.classList.add('hidden'); // Hide pre-reg save error
 
             // Check if it's the specific registration success message
             if (message.startsWith("คุณได้รับคิวหมายเลข:")) {
@@ -559,7 +592,7 @@
             errorDisplay.classList.add('error-message');
             messageDisplay.classList.add('hidden'); // Hide any success messages
             passwordErrorDisplay.classList.add('hidden'); // Hide password error
-            preRegSaveErrorDisplay.classList.add('hidden'); // Hide pre-reg save error
+            preRegSaveErrorDisplayModal.classList.add('hidden'); // Hide pre-reg save error
         }
 
         /**
@@ -570,16 +603,16 @@
             passwordErrorDisplay.textContent = message;
             passwordErrorDisplay.classList.remove('hidden');
             hideMessages(); // Hide general messages
-            preRegSaveErrorDisplay.classList.add('hidden'); // Hide pre-reg save error
+            preRegSaveErrorDisplayModal.classList.add('hidden'); // Hide pre-reg save error
         }
 
         /**
-         * Displays a pre-registration save error message.
+         * Displays a pre-registration save error message within the import modal.
          * @param {string} message Error message to display.
          */
-        function showPreRegSaveError(message) {
-            preRegSaveErrorDisplay.textContent = message;
-            preRegSaveErrorDisplay.classList.remove('hidden');
+        function showPreRegSaveErrorModal(message) {
+            preRegSaveErrorDisplayModal.textContent = message;
+            preRegSaveErrorDisplayModal.classList.remove('hidden');
             hideMessages(); // Hide general messages
             passwordErrorDisplay.classList.add('hidden'); // Hide password error
         }
@@ -591,7 +624,7 @@
             messageDisplay.classList.add('hidden');
             errorDisplay.classList.add('hidden');
             passwordErrorDisplay.classList.add('hidden'); // Also hide password error
-            preRegSaveErrorDisplay.classList.add('hidden'); // Also hide pre-reg save error
+            preRegSaveErrorDisplayModal.classList.add('hidden'); // Also hide pre-reg save error
             // Ensure highlight class is removed when messages are hidden
             messageDisplay.classList.remove('highlight-success-message');
         }
@@ -625,51 +658,64 @@
         }
 
         /**
-         * Shows the custom confirmation modal.
+         * Shows the general confirmation modal (used for Reset).
          */
         function showConfirmationModal() {
             confirmationModal.style.display = 'flex';
         }
 
         /**
-         * Hides the custom confirmation modal.
+         * Hides the general confirmation modal (used for Reset).
          */
         function hideConfirmationModal() {
             confirmationModal.style.display = 'none';
         }
 
         /**
-         * Shows the admin panel (password input and pre-reg section).
+         * Shows the Import Student IDs modal.
+         */
+        function showImportStudentIdsModal() {
+            importStudentIdsModal.style.display = 'flex';
+            preRegisteredIdsTextareaModal.focus(); // Focus on textarea when modal opens
+            preRegisteredIdsTextareaModal.value = ''; // Clear textarea on open
+            preRegSaveErrorDisplayModal.classList.add('hidden'); // Hide error on open
+        }
+
+        /**
+         * Hides the Import Student IDs modal.
+         */
+        function hideImportStudentIdsModal() {
+            importStudentIdsModal.style.display = 'none';
+            preRegisteredIdsTextareaModal.value = ''; // Clear on close
+            preRegSaveErrorDisplayModal.classList.add('hidden'); // Hide error on close
+        }
+
+        /**
+         * Shows the admin panel (only password input).
          */
         function showAdminPanel() {
             adminPanelContainer.style.display = 'flex';
             adminPasswordInput.focus();
             passwordErrorDisplay.classList.add('hidden'); // Clear previous error
-            preRegSaveErrorDisplay.classList.add('hidden'); // Clear previous pre-reg error
             adminPasswordInput.value = ''; // Clear input on show
-            preRegisteredIdsTextarea.value = ''; // Clear textarea on show
-            // Show pre-reg section only if admin is logged in, otherwise hide it initially
-            preRegAdminSection.classList.toggle('hidden', !isAdminLoggedIn);
         }
 
         /**
-         * Hides the admin panel (password input and pre-reg section).
+         * Hides the admin panel (only password input).
          */
         function hideAdminPanel() {
             adminPanelContainer.style.display = 'none';
             adminPasswordInput.value = '';
             passwordErrorDisplay.classList.add('hidden');
-            preRegisteredIdsTextarea.value = ''; // Clear textarea on hide
-            preRegSaveErrorDisplay.classList.add('hidden'); // Hide pre-reg save error
-            preRegAdminSection.classList.add('hidden'); // Ensure pre-reg section is hidden
         }
 
         /**
-         * Toggles the visibility of admin action buttons (Export and Reset).
+         * Toggles the visibility of admin action buttons (Export, Import, Reset).
          * @param {boolean} show True to show, False to hide.
          */
         function toggleAdminActionButtons(show) {
             document.getElementById('fixedExportButtonContainer').style.display = show ? 'flex' : 'none';
+            document.getElementById('fixedImportButtonContainer').style.display = show ? 'flex' : 'none';
             document.getElementById('fixedResetButtonContainer').style.display = show ? 'flex' : 'none';
         }
 
@@ -754,7 +800,7 @@
                 return;
             }
 
-            // New: Check if student ID is pre-registered
+            // Check if student ID is pre-registered
             const preRegDocRef = doc(db, `artifacts/${appId}/public/data/preRegisteredStudentIds`, studentId);
             const preRegDocSnap = await getDoc(preRegDocRef);
 
@@ -993,7 +1039,7 @@
             URL.revokeObjectURL(url); // Release the object URL
 
             showMessage("บันทึกรายงานเป็นไฟล์ CSV เรียบร้อยแล้ว");
-            hideAdminPanel(); // Hide panel after successful export
+            // No need to hide admin panel or toggle buttons here, as they are already visible
         }
 
 
@@ -1050,7 +1096,7 @@
             } finally {
                 showLoading(false);
                 hideConfirmationModal(); // Ensure modal is hidden
-                hideAdminPanel(); // Hide admin panel after successful reset
+                // No need to hide admin panel or toggle buttons here, as they are already visible
             }
         }
 
@@ -1058,18 +1104,14 @@
          * Saves pre-registered student IDs from the textarea to Firestore.
          */
         async function savePreRegisteredIds() {
-            if (!isAdminLoggedIn) {
-                showPreRegSaveError("กรุณาเข้าสู่ระบบผู้ดูแลระบบเพื่อบันทึกข้อมูล");
-                showAdminPanel(); // Show the admin panel for login
-                return;
-            }
+            // This function is now called from confirmImportIdsButton after import modal is shown
 
             hideMessages(); // Clear all messages
-            preRegSaveErrorDisplay.classList.add('hidden'); // Hide specific pre-reg save error
+            preRegSaveErrorDisplayModal.classList.add('hidden'); // Hide specific pre-reg save error
 
-            const idsToSaveText = preRegisteredIdsTextarea.value.trim();
+            const idsToSaveText = preRegisteredIdsTextareaModal.value.trim();
             if (!idsToSaveText) {
-                showPreRegSaveError("กรุณากรอกรหัสนักศึกษาก่อนบันทึก");
+                showPreRegSaveErrorModal("กรุณากรอกรหัสนักศึกษาก่อนบันทึก");
                 return;
             }
 
@@ -1079,14 +1121,14 @@
                                            .filter(id => id.length > 0);
 
             if (idsToSave.length === 0) {
-                showPreRegSaveError("ไม่พบรหัสนักศึกษาที่ถูกต้อง กรุณาตรวจสอบรูปแบบ (10 หลัก, ตัวเลข)");
+                showPreRegSaveErrorModal("ไม่พบรหัสนักศึกษาที่ถูกต้อง กรุณาตรวจสอบรูปแบบ (10 หลัก, ตัวเลข)");
                 return;
             }
 
             // Optional: Client-side validation for ID format before sending to Firestore
             const invalidIds = idsToSave.filter(id => id.length !== 10 || isNaN(id));
             if (invalidIds.length > 0) {
-                showPreRegSaveError(`มีรหัสที่ไม่ถูกต้อง: ${invalidIds.join(', ')}. โปรดตรวจสอบ (ต้องเป็นตัวเลข 10 หลัก)`);
+                showPreRegSaveErrorModal(`มีรหัสที่ไม่ถูกต้อง: ${invalidIds.join(', ')}. โปรดตรวจสอบ (ต้องเป็นตัวเลข 10 หลัก)`);
                 return;
             }
 
@@ -1109,11 +1151,12 @@
                 });
                 await addBatch.commit();
 
-                showMessage(`บันทึก Passphrase (สำหรับนักศึกษา) จำนวน ${idsToSave.length} รายการสำเร็จ`);
-                hideAdminPanel(); // Hide admin panel after successful save
+                showMessage(`นำเข้าข้อมูลสำเร็จ: บันทึกรายชื่อนักศึกษาจำนวน ${idsToSave.length} รายการแล้ว`); // Updated success message
+                hideImportStudentIdsModal(); // Hide import modal after successful save
+                // No need to hide admin panel or toggle buttons here, as they are already visible
             } catch (e) {
                 console.error("Error saving pre-registered IDs:", e);
-                showError("เกิดข้อผิดพลาดในการบันทึก Passphrase (สำหรับนักศึกษา) โปรดลองอีกครั้ง");
+                showPreRegSaveErrorModal("เกิดข้อผิดพลาดในการบันทึกรายชื่อนักศึกษา โปรดลองอีกครั้ง");
             } finally {
                 showLoading(false);
             }
@@ -1123,43 +1166,48 @@
         // --- Event Listeners ---
         registerButton.addEventListener('click', registerQueue);
 
-        // Event listener for Question Mark button (opens/closes admin panel)
+        // Event listener for Question Mark button (opens/closes admin password panel or toggles admin action buttons)
         toggleAdminPanelButton.addEventListener('click', () => {
             hideMessages(); // Clear other messages
-            if (adminPanelContainer.style.display === 'flex') { // If panel is already visible
-                hideAdminPanel();
-                if (!isAdminLoggedIn) { // Only hide action buttons if not logged in
-                     toggleAdminActionButtons(false);
+            if (adminPanelContainer.style.display === 'flex') { // If admin password panel is visible
+                hideAdminPanel(); // Hide it
+                // If admin was logged in, clicking the question mark again should hide the action buttons
+                if (isAdminLoggedIn) {
+                    toggleAdminActionButtons(false);
                 }
-            } else {
-                showAdminPanel(); // Show panel
-                // Show pre-reg section only if admin is already logged in
-                preRegAdminSection.classList.toggle('hidden', !isAdminLoggedIn);
+            } else { // If admin password panel is hidden
+                if (isAdminLoggedIn) { // If admin is already logged in, just toggle action buttons visibility
+                    toggleAdminActionButtons(
+                        !document.getElementById('fixedExportButtonContainer').style.display || // If display is empty or 'none'
+                        document.getElementById('fixedExportButtonContainer').style.display === 'none'
+                    );
+                } else { // If not logged in, show the password panel
+                    showAdminPanel();
+                }
             }
         });
 
         // Event listener for Enter key in password input (in adminPanelContainer)
         adminPasswordInput.addEventListener('keyup', (event) => {
             if (event.key === 'Enter') {
-                // Only proceed if password is not empty (as per user's "ต้องใส่รหัสก่อน ถึงจะมีการตรวจเช็ค")
                 if (adminPasswordInput.value.trim() === '') {
                     showPasswordError("กรุณากรอก Passphrase");
-                    return; // Stop here if empty
+                    return;
                 }
 
-                hideMessages(); // Clear general messages
+                hideMessages();
                 const enteredPassword = adminPasswordInput.value;
                 if (enteredPassword === ADMIN_PASSWORD && authReady) {
-                    isAdminLoggedIn = true; // Set admin session active
-                    hideAdminPanel(); // Hide the panel after successful login
-                    toggleAdminActionButtons(true); // Show Export and Reset buttons
-                    showMessage("เข้าสู่ระบบผู้ดูแลระบบสำเร็จ"); // Optional success message
+                    isAdminLoggedIn = true;
+                    hideAdminPanel(); // Hide the password input panel
+                    toggleAdminActionButtons(true); // Show Export, Import, Reset buttons
+                    showMessage("เข้าสู่ระบบผู้ดูแลระบบสำเร็จ");
                 } else {
-                    showPasswordError("Passphrase ไม่ถูกต้อง"); // Updated message
-                    isAdminLoggedIn = false; // Ensure session is not active
-                    toggleAdminActionButtons(false); // Hide action buttons if login fails
+                    showPasswordError("Passphrase ไม่ถูกต้อง");
+                    isAdminLoggedIn = false;
+                    toggleAdminActionButtons(false); // Ensure buttons are hidden on failed login
                 }
-                event.preventDefault(); // Prevent default form submission if any
+                event.preventDefault();
             }
         });
 
@@ -1168,6 +1216,17 @@
             hideMessages(); // Clear any previous messages
             if (isAdminLoggedIn) { // Check if admin session is active
                 exportRegistrationReportToCsv();
+            } else {
+                showAdminPanel(); // Show panel to prompt for password
+                showPasswordError("กรุณากรอก Passphrase ก่อน"); // Prompt message
+            }
+        });
+
+        // Handle click on the Import Button (New)
+        toggleImportIdsButton.addEventListener('click', () => {
+            hideMessages(); // Clear any previous messages
+            if (isAdminLoggedIn) { // Check if admin session is active
+                showImportStudentIdsModal(); // Show the new import modal
             } else {
                 showAdminPanel(); // Show panel to prompt for password
                 showPasswordError("กรุณากรอก Passphrase ก่อน"); // Prompt message
@@ -1195,20 +1254,23 @@
             passwordErrorDisplay.classList.add('hidden'); // Hide error when user starts typing
         });
 
-        // New event listener for Save Pre-registered IDs button
-        savePreRegisteredIdsButton.addEventListener('click', savePreRegisteredIds);
-        // New event listener for preRegisteredIdsTextarea to clear error on input
-        preRegisteredIdsTextarea.addEventListener('input', () => {
-            preRegSaveErrorDisplay.classList.add('hidden');
+        // Import Modal Button Listeners
+        confirmImportIdsButton.addEventListener('click', savePreRegisteredIds); // This now directly calls save
+        cancelImportIdsButton.addEventListener('click', hideImportStudentIdsModal);
+
+        // New event listener for preRegisteredIdsTextareaModal to clear error on input
+        preRegisteredIdsTextareaModal.addEventListener('input', () => {
+            preRegSaveErrorDisplayModal.classList.add('hidden');
         });
 
 
-        // Modal button listeners
+        // Reset Confirmation Modal button listeners
         confirmResetButton.addEventListener('click', async () => {
             await resetAllQueuesToday();
-            // After reset, ensure admin session is cleared and buttons are hidden
-            isAdminLoggedIn = false;
-            toggleAdminActionButtons(false);
+            // After reset, ensure admin session is cleared and buttons are hidden IF question mark button was used to toggle
+            // For now, keep buttons visible as the user might want to do other admin tasks
+            // isAdminLoggedIn = false; // Do not reset isAdminLoggedIn here, as they might do more admin tasks
+            // toggleAdminActionButtons(false); // Do not hide action buttons here
         });
         cancelResetButton.addEventListener('click', hideConfirmationModal);
 
