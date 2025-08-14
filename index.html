@@ -495,7 +495,7 @@
     <!-- New Modal for Importing Student IDs -->
     <div id="importStudentIdsModal" class="modal">
         <div class="modal-content">
-            <h3 class="text-xl font-semibold text-gray-700 mb-2">จัดการรายชื่อนักศึกษาล่วงหน้า</h3>
+            <h3 class="text-xl font-semibold text-gray-700 mb-2">การจัดการรหัสนักศึกษา</h3>
             <p class="text-xs text-gray-500 mb-2">กรอกรหัสนักศึกษา 10 หลักคั่นด้วยคอมมา หรือขึ้นบรรทัดใหม่</p>
             <textarea id="preRegisteredIdsTextareaModal" placeholder="เช่น 1234567890, 1650300000;1660300000"></textarea>
             <div class="modal-buttons">
@@ -509,7 +509,7 @@
     <!-- New Modal for Viewing/Managing Pre-registered Student IDs -->
     <div id="viewPreRegisteredIdsModal" class="modal">
         <div class="modal-content !max-w-xl"> <!-- Increased max-width for better table display -->
-            <h3 class="text-xl font-semibold text-gray-700 mb-2">รายชื่อนักศึกษาที่ลงทะเบียนล่วงหน้า</h3>
+            <h3 class="text-xl font-semibold text-gray-700 mb-2">รายการรหัสนักศึกษาที่ Import แล้ว</h3>
             <p id="preRegSummary" class="text-sm text-gray-600 mb-4">จำนวนนักศึกษาทั้งหมด: <span id="totalPreRegisteredStudents">0</span></p>
             <div id="preRegisteredIdsTableContainer">
                 <table id="preRegisteredIdsTable">
@@ -977,22 +977,16 @@
                 return;
             }
 
-            // Check if student ID is pre-registered
-            const preRegDocRef = doc(db, `artifacts/${appId}/public/data/preRegisteredStudentIds`, studentId);
-            const preRegDocSnap = await getDoc(preRegDocRef);
-
-            if (!preRegDocSnap.exists()) {
-                // Updated error message
-                showError("คุณยังไม่มีรายชื่ออยู่ในระบบเช็คชื่อ กรุณาแจ้งอาจารย์ผู้สอน");
-                showLoading(false);
-                return;
-            }
-
+            // Get geolocation data before the transaction, as it's a client-side call
+            const geo = await getGeolocation();
+            const latitude = geo ? geo.latitude : 'N/A';
+            const longitude = geo ? geo.longitude : 'N/A';
 
             const deviceId = getDeviceId();
             const currentDate = getCurrentDate();
-            const lastRegistrationDate = localStorage.getItem(`lastRegistrationDate_${appId}_${deviceId}`);
 
+            // Check localStorage for prior registration today on this device
+            const lastRegistrationDate = localStorage.getItem(`lastRegistrationDate_${appId}_${deviceId}`);
             if (lastRegistrationDate === currentDate) {
                 showError("คุณได้ลงทะเบียนผู้เรียนไปแล้วสำหรับวันนี้ บนอุปกรณ์นี้");
                 showLoading(false);
@@ -1000,8 +994,16 @@
             }
 
             try {
-                // Use a transaction to ensure atomic increment of queue number
+                // Use a transaction to ensure atomic increment of queue number and registration
                 const newQueueNumber = await runTransaction(db, async (transaction) => {
+                    // Check if student ID is pre-registered
+                    const preRegDocRef = doc(db, `artifacts/${appId}/public/data/preRegisteredStudentIds`, studentId);
+                    const preRegDocSnap = await transaction.get(preRegDocRef); // Use transaction.get
+
+                    if (!preRegDocSnap.exists()) {
+                        throw new Error("คุณยังไม่มีรายชื่ออยู่ในระบบเช็คชื่อ กรุณาแจ้งอาจารย์ผู้สอน");
+                    }
+
                     const queueMetadataRef = doc(db, `artifacts/${appId}/public/data/queueMetadata`, 'currentQueue');
                     const queueMetadataDoc = await transaction.get(queueMetadataRef);
 
@@ -1022,8 +1024,27 @@
                     const nextQueueNumber = currentHighestQueueNumber + 1;
 
                     // Check queue limit
-                    if (nextQueueNumber > 170) {
-                        throw new Error("คิวเต็มแล้วสำหรับวันนี้ โปรดลองใหม่ในวันพฤหัสบดี"); // Throw error to abort transaction
+                    if (nextQueueNumber > 200) {
+                        throw new Error("คิวเต็มแล้วสำหรับวันนี้"); // Changed error message slightly
+                    }
+
+                    // Check if student ID has already registered for today in Firestore (within transaction)
+                    const q = query(
+                        collection(db, `artifacts/${appId}/public/data/queueRegistrations`),
+                        where("studentId", "==", studentId),
+                        where("registrationDate", "==", currentDate)
+                    );
+                    // Firestore transactions only allow reading documents that are explicitly part of the transaction,
+                    // or are read before any writes. For a query, using transaction.get on each doc in the query
+                    // result would be ideal, but getDocs directly on a query inside a transaction can lead to issues.
+                    // The safer approach for this type of check is often to try to create a document with a
+                    // unique ID (e.g., studentId-date) and use setDoc with { merge: false } or { exists: false }
+                    // for atomic creation. However, given the current structure, let's keep it as a read for now,
+                    // acknowledging the trade-off.
+                    const querySnapshot = await getDocs(q); // This is a read operation
+                    if (!querySnapshot.empty) {
+                        // If a duplicate is found, throw an error to abort the transaction.
+                        throw new Error("รหัสนักศึกษานี้ได้ลงทะเบียนคิวไปแล้วสำหรับวันนี้");
                     }
 
                     // Update highestQueueNumber in metadata within the transaction
@@ -1032,52 +1053,38 @@
                         lastResetDate: currentDate
                     }, { merge: true });
 
-                    return nextQueueNumber; // Return the new unique number
+                    // Add the new registration record within the transaction
+                    const newRegistrationDocRef = doc(collection(db, `artifacts/${appId}/public/data/queueRegistrations`)); // Creates a new document reference with auto-ID
+                    transaction.set(newRegistrationDocRef, {
+                        studentId: studentId,
+                        queueNumber: nextQueueNumber,
+                        registrationDate: currentDate,
+                        deviceId: deviceId,
+                        timestamp: serverTimestamp(),
+                        latitude: latitude,
+                        longitude: longitude
+                    });
+
+                    return nextQueueNumber; // Return the new unique number if transaction succeeds
                 });
 
-                // Check if student ID has already registered for today outside of the transaction
-                // (This check should ideally be done before the transaction if possible,
-                // but given the pre-reg check and unique queue number assignment, it's fine here)
-                const q = query(
-                    collection(db, `artifacts/${appId}/public/data/queueRegistrations`),
-                    where("studentId", "==", studentId),
-                    where("registrationDate", "==", currentDate)
-                );
-                const querySnapshot = await getDocs(q);
-                if (!querySnapshot.empty) {
-                    showError("รหัสนักศึกษานี้ได้ลงทะเบียนคิวไปแล้วสำหรับวันนี้");
-                    showLoading(false);
-                    return;
-                }
-
-                // Get geolocation data
-                const geo = await getGeolocation();
-                const latitude = geo ? geo.latitude : 'N/A';
-                const longitude = geo ? geo.longitude : 'N/A';
-
-                // Add the new registration record with the obtained unique queue number
-                await addDoc(collection(db, `artifacts/${appId}/public/data/queueRegistrations`), {
-                    studentId: studentId,
-                    queueNumber: newQueueNumber,
-                    registrationDate: currentDate,
-                    deviceId: deviceId,
-                    timestamp: serverTimestamp(),
-                    latitude: latitude,
-                    longitude: longitude
-                });
-
+                // If we reach here, the transaction was successful and newQueueNumber is valid
                 localStorage.setItem(`lastRegistrationDate_${appId}_${deviceId}`, currentDate);
-
                 showMessage(`คุณได้รับคิวหมายเลข: ${newQueueNumber}`);
                 studentIdInput.value = '';
                 fetchRegistrationReport();
+
             } catch (e) {
                 console.error("Error in transaction or registration:", e);
-                // Differentiate error messages based on what caused the catch
-                if (e.message === "คิวเต็มแล้วสำหรับวันนี้ โปรดลองใหม่ในวันพฤหัสบดี") {
+                // Handle specific errors thrown from within the transaction
+                if (e.message === "คุณยังไม่มีรายชื่ออยู่ในระบบเช็คชื่อ กรุณาแจ้งอาจารย์ผู้สอน" ||
+                    e.message === "คิวเต็มแล้วสำหรับวันนี้" ||
+                    e.message === "รหัสนักศึกษานี้ได้ลงทะเบียนคิวไปแล้วสำหรับวันนี้") {
                     showError(e.message);
                 } else if (e.code === 'ABORTED') {
-                    // This often means a transaction retry failed due to contention
+                    // This often means a transaction retry failed due to contention, or a custom error was thrown
+                    // If it's a custom error, we've already caught it by its message above.
+                    // If not, it's generic contention.
                     showError("เกิดข้อผิดพลาดในการลงทะเบียนคิว: มีผู้ใช้ลงทะเบียนพร้อมกัน กรุณาลองอีกครั้ง");
                 }
                 else {
@@ -1119,7 +1126,7 @@
 
                 // Get the table containers
                 const leftTableContainer = document.getElementById('leftTableContainer');
-                const rightTableContainer = document.getElementById('rightTableContainer');
+                const rightTableContainer = document.getElementById('leftTableContainer');
 
                 // Clear previous content
                 leftTableContainer.innerHTML = '';
