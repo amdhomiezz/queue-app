@@ -305,10 +305,11 @@
             <div id="reportLoadingIndicator" class="report-loading-indicator">
                 กำลังโหลดรายงาน...
             </div>
-            <!-- Modified to display two columns for tables -->
+            <!-- Modified to display three columns for tables -->
             <div id="registrationReport" class="mt-4 flex flex-wrap -mx-2">
-                <div id="leftTableContainer" class="w-full md:w-1/2 px-2"></div>
-                <div id="rightTableContainer" class="w-full md:w-1/2 px-2"></div>
+                <div id="leftTableContainer" class="w-full sm:w-1/2 lg:w-1/3 px-2"></div>
+                <div id="middleTableContainer" class="w-full sm:w-1/2 lg:w-1/3 px-2"></div>
+                <div id="rightTableContainer" class="w-full sm:w-1/2 lg:w-1/3 px-2"></div>
                 <p id="noReportDataMessage" class="no-data-message hidden w-full px-2">ยังไม่มีข้อมูลการลงทะเบียนสำหรับวันนี้</p>
             </div>
         </div>
@@ -541,6 +542,7 @@
                 reportLoadingIndicator.classList.remove('hidden');
                 // Don't clear registrationReportDiv here, as it now contains containers
                 document.getElementById('leftTableContainer').innerHTML = '';
+                document.getElementById('middleTableContainer').innerHTML = ''; // New
                 document.getElementById('rightTableContainer').innerHTML = '';
                 noReportDataMessage.classList.add('hidden'); // Hide no data message
             } else {
@@ -743,17 +745,22 @@
 
                 // Get the table containers
                 const leftTableContainer = document.getElementById('leftTableContainer');
+                const middleTableContainer = document.getElementById('middleTableContainer'); // New
                 const rightTableContainer = document.getElementById('rightTableContainer');
 
                 // Clear previous content
                 leftTableContainer.innerHTML = '';
+                middleTableContainer.innerHTML = ''; // New
                 rightTableContainer.innerHTML = '';
 
 
                 if (currentRegistrationsData.length > 0) {
-                    const midpoint = Math.ceil(currentRegistrationsData.length / 2);
-                    const leftHalf = currentRegistrationsData.slice(0, midpoint);
-                    const rightHalf = currentRegistrationsData.slice(midpoint);
+                    const total = currentRegistrationsData.length;
+                    const thirdSize = Math.ceil(total / 3);
+
+                    const firstThird = currentRegistrationsData.slice(0, thirdSize);
+                    const secondThird = currentRegistrationsData.slice(thirdSize, thirdSize * 2);
+                    const thirdThird = currentRegistrationsData.slice(thirdSize * 2);
 
                     const generateTableHtml = (data) => {
                         if (data.length === 0) return ''; // Return empty if no data for this half
@@ -787,13 +794,17 @@
                         return tableHtml;
                     };
 
-                    const leftTableHtml = generateTableHtml(leftHalf);
-                    const rightTableHtml = generateTableHtml(rightHalf);
+                    const leftTableHtml = generateTableHtml(firstThird);
+                    const middleTableHtml = generateTableHtml(secondThird); // New
+                    const rightTableHtml = generateTableHtml(thirdThird);
 
-                    if (leftHalf.length > 0) {
+                    if (firstThird.length > 0) {
                         leftTableContainer.innerHTML = leftTableHtml;
                     }
-                    if (rightHalf.length > 0) { // Only append right table if there's data for it
+                    if (secondThird.length > 0) { // Only append middle table if there's data for it
+                        middleTableContainer.innerHTML = middleTableHtml;
+                    }
+                    if (thirdThird.length > 0) { // Only append right table if there's data for it
                         rightTableContainer.innerHTML = rightTableHtml;
                     }
 
