@@ -828,8 +828,7 @@
                                         <th>ลำดับ</th>
                                         <th>รหัสนักศึกษา</th>
                                         <th>เวลาลงทะเบียน</th>
-                                        <th>ละติจูด</th>
-                                        <th>ลองจิจูด</th>
+                                        <!-- Removed Latitude and Longitude columns from display -->
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -842,8 +841,7 @@
                                     <td>${reg.queueNumber}</td>
                                     <td>${reg.studentId}</td>
                                     <td>${registrationTime}</td>
-                                    <td>${typeof reg.latitude === 'number' ? reg.latitude.toFixed(4) : reg.latitude}</td>
-                                    <td>${typeof reg.longitude === 'number' ? reg.longitude.toFixed(4) : reg.longitude}</td>
+                                    <!-- Removed Latitude and Longitude data from display -->
                                 </tr>
                             `;
                         });
@@ -886,7 +884,7 @@
                 return;
             }
 
-            const headers = ["ลำดับ", "รหัสนักศึกษา", "เวลาลงทะเบียน", "ละติจูด", "ลองจิจูด"];
+            const headers = ["ลำดับ", "รหัสนักศึกษา", "เวลาลงทะเบียน", "ละติจูด", "ลองจิจูด"]; // Keep headers for export
             // Escape values that might contain commas or newlines
             const escapeCsv = (value) => {
                 if (value === null || value === undefined) return '';
