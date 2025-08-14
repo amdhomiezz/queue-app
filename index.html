@@ -84,7 +84,7 @@
             background-color: #ecfdf5;
             border: 1px solid #d1fae5;
             border-radius: 10px;
-            font-size: 1.1rem;
+            font-size: 1.1rem; /* Adjusted for consistency, will make span bold */
             font-weight: 500;
             color: #047857;
         }
@@ -101,8 +101,9 @@
         }
         .report-table th, .report-table td {
             border: 1px solid #e0e0e0;
-            padding: 10px;
+            padding: 8px; /* Reduced padding */
             text-align: left;
+            font-size: 0.85rem; /* Reduced font size */
         }
         .report-table th {
             background-color: #f8f8f8;
@@ -290,8 +291,11 @@
 </head>
 <body>
     <div class="container">
-        <h1 class="text-3xl font-bold text-gray-800 mb-6">ระบบคิวเข้าห้องเรียน</h1>
-        <p class="text-gray-600 mb-6">ลงทะเบียนเพื่อรับคิวเข้าห้องเรียนของคุณ</p>
+        <!-- New Headline -->
+        <p class="text-xl font-semibold text-gray-700 mb-2">CA033 : Idea Generation Workshop and Agile Management</p>
+        <h1 class="text-3xl font-bold text-gray-800 mb-6">ระบบรับหมายเลขผู้เรียน (เช็คชื่อ)</h1>
+        <p class="text-gray-600 mb-1">กรอกรหัสนักศึกษา 10 หลัก</p>
+        <p class="text-gray-600 mb-6">เพื่อรับหมายเลขประจำตัวผู้เรียน</p>
 
         <div class="mb-4 text-left">
             <label for="studentIdInput" class="block text-gray-700 text-sm font-medium mb-2">รหัสนักศึกษา:</label>
@@ -299,7 +303,7 @@
         </div>
 
         <button id="registerButton" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1" disabled>
-            ลงทะเบียนคิว
+            ลงทะเบียนรับบัตรผู้เรียน
         </button>
 
         <div id="messageDisplay" class="message-box hidden">
@@ -313,8 +317,8 @@
         </div>
 
         <div id="currentQueueInfo" class="current-queue-info">
-            <p>คิวล่าสุด: <span id="highestQueueNumberDisplay" class="font-bold text-green-700">--</span></p>
-            <p class="text-sm mt-1">รีเซ็ตคิวทุกวันเวลา 00:00 น.</p>
+            <p class="text-xl font-bold text-green-700">หมายเลขผู้เรียน: <span id="highestQueueNumberDisplay" class="font-bold text-green-700">--</span></p>
+            <!-- Removed the reset queue daily message -->
         </div>
 
         <!-- ส่วนสำหรับรายงานการลงทะเบียน -->
@@ -324,7 +328,6 @@
                 <button id="viewReportButton" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1" disabled>
                     ดูรายงานการลงทะเบียนวันนี้
                 </button>
-                <!-- Removed the old exportReportButton from here -->
             </div>
             <div id="reportLoadingIndicator" class="report-loading-indicator">
                 กำลังโหลดรายงาน...
@@ -354,7 +357,6 @@
 
     <!-- Floating Admin Panel (initially hidden) -->
     <div id="adminPanelContainer">
-        <!-- Removed the h3 title "Admin" -->
         <input type="password" id="adminPasswordInput" placeholder="รหัสผ่าน" class="admin-password-input focus:ring-2 focus:ring-yellow-300 focus:border-transparent">
         <button id="executeResetButton" class="admin-execute-reset-button" disabled>
             <i class="fas fa-trash-alt"></i> <!-- Icon for trash/delete -->
@@ -758,11 +760,9 @@
                         </table>
                     `;
                     registrationReportDiv.innerHTML = tableHtml;
-                    // exportReportButton.disabled = false; // The old button is removed, new floating button is managed by password
                 } else {
                     registrationReportDiv.innerHTML = '';
                     noReportDataMessage.classList.remove('hidden'); // Show "no data" message
-                    // exportReportButton.disabled = true; // The old button is removed
                 }
             } catch (e) {
                 console.error("Error fetching registration report:", e);
@@ -780,7 +780,6 @@
             // Check admin password from the floating admin panel's input
             const enteredPassword = adminPasswordInput.value;
             if (enteredPassword !== ADMIN_PASSWORD) {
-                showError("กรุณาป้อนรหัสผ่านผู้ดูแลระบบที่ถูกต้องในช่องรหัสผ่าน เพื่อบันทึกรายงาน");
                 // Optionally, make admin panel visible if it's hidden, and focus password input
                 if (!adminPanelContainer.classList.contains('admin-panel-visible')) {
                     adminPanelContainer.classList.add('admin-panel-visible');
