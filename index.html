@@ -270,15 +270,40 @@
             bottom: 20px;
             left: 20px;
             z-index: 999;
-            display: flex; /* This button's container is always visible */
+            /* Initial state for hover effect */
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none; /* Cannot click when invisible */
+            transition: opacity 0.3s ease, visibility 0.3s ease;
         }
 
-        #toggleAdminPanelButton { /* Specific style for Question Mark button */
-            background-color: #e0e0e0; /* A very light gray */
-            color: #6b7280; /* Darker gray for the question mark itself */
+        #fixedAdminToggleButtonContainer:hover {
+            opacity: 1;
+            visibility: visible;
+            pointer-events: auto; /* Can click when visible */
         }
-        #toggleAdminPanelButton:hover {
-             background-color: #c9c9c9; /* Slightly darker gray on hover */
+
+        #adminLoginStatusMessage {
+            position: fixed; /* Fixed position on screen */
+            bottom: 80px; /* Adjust based on button position, higher than the button */
+            left: 20px; /* Align with the button */
+            padding: 8px 12px;
+            background-color: #d1fae5; /* light green for success */
+            color: #065f46; /* dark green */
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            font-size: 0.9rem;
+            font-weight: 500;
+            z-index: 1001; /* Ensure it's above other elements */
+            opacity: 0; /* Start hidden */
+            visibility: hidden; /* Start hidden */
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+            pointer-events: none; /* Make it not interfere with clicks */
+            white-space: nowrap; /* Prevent text wrapping */
+        }
+        #adminLoginStatusMessage.visible {
+            opacity: 1;
+            visibility: visible;
         }
 
 
@@ -370,7 +395,7 @@
         #preRegisteredIdsTable tbody tr:nth-child(even) {
             background-color: #f9f9f9;
         }
-        #preRegisteredIdsTable tbody tr:hover {
+        .report-table tbody tr:hover {
             background-color: #f0f0f0;
         }
         #preRegisteredIdsTable td.actions {
@@ -437,7 +462,7 @@
         </div>
 
         <button id="registerButton" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1" disabled>
-            ลงทะเบียนรับบัตรผู้เรียน
+            ลงทะเบียนรับหมายเลขผู้เรียนประจำวัน
         </button>
 
         <div id="messageDisplay" class="message-box hidden">
@@ -542,6 +567,10 @@
         </button>
     </div>
 
+    <!-- New Admin Login Status Message -->
+    <div id="adminLoginStatusMessage" class="hidden"></div>
+
+
     <!-- Floating Export Button (Save Icon) -->
     <div id="fixedExportButtonContainer">
         <button id="toggleExportReportButton" class="floating-icon-button">
@@ -619,6 +648,7 @@
         const adminPasswordInput = document.getElementById('adminPasswordInput');
         const passwordErrorDisplay = document.getElementById('passwordErrorDisplay');
         const resetQueueButton = document.getElementById('resetQueueButton');
+        const adminLoginStatusMessage = document.getElementById('adminLoginStatusMessage'); // New element
 
         // Import Modal elements
         const importStudentIdsModal = document.getElementById('importStudentIdsModal');
@@ -715,19 +745,22 @@
          * @param {string} message Message to display.
          */
         function showMessage(message) {
-            messageDisplay.classList.remove('hidden', 'error-message');
-            messageDisplay.classList.add('message-box'); // Apply default message-box styles first
-            errorDisplay.classList.add('hidden'); // Hide any error messages
-            passwordErrorDisplay.classList.add('hidden'); // Hide password error
-            preRegSaveErrorDisplayModal.classList.add('hidden'); // Hide pre-reg save error
+            // Only use messageDisplay for general app messages, not admin login status
+            if (!message.includes("เข้าสู่ระบบผู้ดูแลระบบสำเร็จ")) {
+                messageDisplay.classList.remove('hidden', 'error-message');
+                messageDisplay.classList.add('message-box'); // Apply default message-box styles first
+                errorDisplay.classList.add('hidden'); // Hide any error messages
+                passwordErrorDisplay.classList.add('hidden'); // Hide password error
+                preRegSaveErrorDisplayModal.classList.add('hidden'); // Hide pre-reg save error
 
-            // Check if it's the specific registration success message
-            if (message.startsWith("คุณได้รับคิวหมายเลข:")) {
-                messageDisplay.textContent = message.replace("คุณได้รับคิวหมายเลข:", "คุณได้รับลำดับผู้เรียนหมายเลข :");
-                messageDisplay.classList.add('highlight-success-message'); // Apply highlight styles
-            } else {
-                messageDisplay.textContent = message;
-                messageDisplay.classList.remove('highlight-success-message'); // Remove highlight for other messages
+                // Check if it's the specific registration success message
+                if (message.startsWith("คุณได้รับคิวหมายเลข:")) {
+                    messageDisplay.textContent = message.replace("คุณได้รับคิวหมายเลข:", "คุณได้รับลำดับผู้เรียนหมายเลข :");
+                    messageDisplay.classList.add('highlight-success-message'); // Apply highlight styles
+                } else {
+                    messageDisplay.textContent = message;
+                    messageDisplay.classList.remove('highlight-success-message'); // Remove highlight for other messages
+                }
             }
         }
 
@@ -753,6 +786,7 @@
             passwordErrorDisplay.classList.remove('hidden');
             hideMessages(); // Hide general messages
             preRegSaveErrorDisplayModal.classList.add('hidden'); // Hide pre-reg save error
+            adminLoginStatusMessage.classList.remove('visible'); // Hide admin login status
         }
 
         /**
@@ -764,6 +798,7 @@
             preRegSaveErrorDisplayModal.classList.remove('hidden');
             hideMessages(); // Hide general messages
             passwordErrorDisplay.classList.add('hidden'); // Hide password error
+            adminLoginStatusMessage.classList.remove('visible'); // Hide admin login status
         }
 
         /**
@@ -1142,25 +1177,25 @@
                         if (data.length === 0) return '';
 
                         let tableHtml = `
-                            <table class="report-table">
+                            <table class="report-table mb-4"> <!-- Added mb-4 for spacing -->
                                 <thead>
                                     <tr>
                                         <th>ลำดับ</th>
                                         <th>รหัสนักศึกษา</th>
-                                        <th>เวลาลงทะเบียน</th>
+                                        <th>วันเวลาลงทะเบียน</th> <!-- Updated header -->
                                         <!-- Removed Latitude and Longitude columns from display -->
                                     </tr>
                                 </thead>
                                 <tbody>
                         `;
                         data.forEach(reg => {
-                            const registrationTime = reg.timestamp && reg.timestamp.toDate ?
-                                reg.timestamp.toDate().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'N/A';
+                            const registrationDateTime = reg.timestamp && reg.timestamp.toDate ?
+                                reg.timestamp.toDate().toLocaleString('th-TH', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'N/A'; // Updated toLocaleString
                             tableHtml += `
                                 <tr>
                                     <td>${reg.queueNumber}</td>
                                     <td>${reg.studentId}</td>
-                                    <td>${registrationTime}</td>
+                                    <td>${registrationDateTime}</td> <!-- Updated data display -->
                                     <!-- Removed Latitude and Longitude data from display -->
                                 </tr>
                             `;
@@ -1200,7 +1235,7 @@
         function exportRegistrationReportToCsv() {
             if (!currentRegistrationsData || currentRegistrationsData.length === 0) {
                 showError("ไม่มีข้อมูลรายงานให้ส่งออก");
-                return; // Do not hide admin panel or toggle buttons here
+                return false; // Indicate failure to export
             }
 
             const headers = ["ลำดับ", "รหัสนักศึกษา", "เวลาลงทะเบียน", "ละติจูด", "ลองจิจูด"]; // Keep headers for export
@@ -1215,8 +1250,8 @@
             };
 
             const rows = currentRegistrationsData.map(reg => {
-                const registrationTime = reg.timestamp && reg.timestamp.toDate ?
-                    reg.timestamp.toDate().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'N/A';
+                const registrationDateTime = reg.timestamp && reg.timestamp.toDate ?
+                    reg.timestamp.toDate().toLocaleString('th-TH', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'N/A'; // Updated toLocaleString
                 
                 const latitude = typeof reg.latitude === 'number' ? reg.latitude.toFixed(4) : reg.latitude;
                 const longitude = typeof reg.longitude === 'number' ? reg.longitude.toFixed(4) : reg.longitude;
@@ -1224,7 +1259,7 @@
                 return [
                     escapeCsv(reg.queueNumber),
                     escapeCsv(reg.studentId),
-                    escapeCsv(registrationTime),
+                    escapeCsv(registrationDateTime), // Updated data display
                     escapeCsv(latitude),
                     escapeCsv(longitude)
                 ].join(',');
@@ -1243,7 +1278,7 @@
             URL.revokeObjectURL(url); // Release the object URL
 
             showMessage("บันทึกรายงานเป็นไฟล์ CSV เรียบร้อยแล้ว");
-            // No need to hide admin panel or toggle buttons here, as they are already visible
+            return true; // Indicate successful export
         }
 
 
@@ -1737,7 +1772,15 @@
                     isAdminLoggedIn = true;
                     hideAdminPanel(); // Hide the password input panel
                     toggleAdminActionButtons(true); // Show Export, Import, View/Manage, Reset buttons
-                    showMessage("เข้าสู่ระบบผู้ดูแลระบบสำเร็จ");
+                    
+                    // Show admin login status message
+                    adminLoginStatusMessage.textContent = "เข้าสู่ระบบผู้ดูแลระบบสำเร็จ";
+                    adminLoginStatusMessage.classList.add('visible');
+                    setTimeout(() => {
+                        adminLoginStatusMessage.classList.remove('visible');
+                        adminLoginStatusMessage.textContent = '';
+                    }, 3000); // Hide after 3 seconds
+
                 } else {
                     showPasswordError("Passphrase ไม่ถูกต้อง");
                     isAdminLoggedIn = false;
@@ -1789,8 +1832,13 @@
             }
             hideMessages(); // Clear any previous messages
             if (isAdminLoggedIn) { // Check if admin session is active
-                showConfirmationModal("คุณแน่ใจหรือไม่ที่ต้องการรีเซ็ตคิวทั้งหมดสำหรับวันนี้?", async () => {
-                    await resetAllQueuesToday();
+                showConfirmationModal("คุณแน่ใจหรือไม่ที่ต้องการรีเซ็ตคิวทั้งหมดสำหรับวันนี้? ข้อมูลจะถูก Export ก่อนลบ", async () => {
+                    const exported = exportRegistrationReportToCsv(); // Try to export
+                    if (exported) { // Only proceed with delete if export was successful
+                        await resetAllQueuesToday();
+                    } else {
+                        showError("ไม่สามารถส่งออกข้อมูลได้ จึงไม่ทำการรีเซ็ตคิว"); // Inform user if export failed
+                    }
                 });
             } else {
                 showAdminPanel(); // Show panel to prompt for password
