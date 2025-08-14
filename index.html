@@ -199,7 +199,7 @@
             padding: 15px;
             border-radius: 10px;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-            display: none; /* Controlled by JS now */
+            display: none; /* Controlled by JS now: Initially hidden */
             flex-direction: column;
             gap: 10px; /* Space between elements */
             width: 200px; /* Small width */
@@ -223,7 +223,7 @@
         }
 
 
-        /* Unified style for floating icon buttons */
+        /* Unified style for floating icon buttons - general appearance */
         .floating-icon-button {
             width: 48px;
             height: 48px;
@@ -235,41 +235,59 @@
             font-size: 1.25rem;
             color: #fff; /* Default white icon */
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-            transition: background-color 0.3s ease, transform 0.2s ease, opacity 0.3s ease;
-            opacity: 1; /* Always visible */
-            pointer-events: auto; /* Always clickable */
-            position: fixed; /* Common to all floating buttons */
-            z-index: 999;
-            transform: translateY(0); /* Ensure no initial transform */
+            transition: background-color 0.3s ease, transform 0.2s ease; /* Removed opacity/visibility from transition here */
         }
         .floating-icon-button:hover {
             transform: translateY(-2px); /* Slight lift effect on hover for all */
         }
 
-        /* Specific colors and positions for floating buttons */
+        /* Specific positioning and initial hiding for button containers */
+        #fixedAdminToggleButtonContainer {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            z-index: 999;
+            display: flex; /* This button's container is always visible */
+        }
 
-        #toggleExportReportButton { /* Save button (left side) */
+        #toggleAdminPanelButton { /* Specific style for Question Mark button */
+            background-color: #e0e0e0; /* A very light gray */
+            color: #6b7280; /* Darker gray for the question mark itself */
+        }
+        #toggleAdminPanelButton:hover {
+             background-color: #c9c9c9; /* Slightly darker gray on hover */
+        }
+
+
+        #fixedExportButtonContainer {
+            position: fixed;
+            bottom: 20px;
+            left: 80px; /* Positioned next to admin toggle button */
+            z-index: 999;
+            display: none; /* Hidden by default, shown by JS */
+        }
+        #toggleExportReportButton { /* Specific style for Save button */
             background-color: #9ca3af; /* A subtle blue-gray */
             color: #fff;
-            bottom: 20px;
-            left: 20px; /* Positioned at left 20px now */
         }
         #toggleExportReportButton:hover {
             background-color: #6b7280; /* Darker gray on hover */
         }
 
-        #resetQueueButton { /* New Reset button (right side) */
-            background-color: #ef4444; /* Red color for delete/reset */
-            color: #fff;
+        #fixedResetButtonContainer {
+            position: fixed;
             bottom: 20px;
             right: 20px;
+            z-index: 999;
+            display: none; /* Hidden by default, shown by JS */
+        }
+        #resetQueueButton { /* Specific style for Smiling Face button */
+            background-color: #ef4444; /* Red color for delete/reset */
+            color: #fff;
         }
         #resetQueueButton:hover {
             background-color: #dc2626; /* Darker red on hover */
         }
-
-        /* No need for body:hover rules anymore as buttons are always visible */
-        /* No need for adminPanelContainer.admin-panel-visible rules as display is managed by JS directly */
     </style>
 </head>
 <body>
@@ -339,7 +357,14 @@
     <!-- Floating Admin Panel (initially hidden by display: none) -->
     <div id="adminPanelContainer">
         <input type="password" id="adminPasswordInput" placeholder="Passphrase" class="admin-password-input focus:ring-2 focus:ring-yellow-300 focus:border-transparent">
-        <span id="passwordErrorDisplay" class="password-error-message hidden">รหัสผ่านไม่ถูกต้อง</span>
+        <span id="passwordErrorDisplay" class="password-error-message hidden">Passphrase ไม่ถูกต้อง</span>
+    </div>
+
+    <!-- Floating Toggle Button (Question Mark Icon) -->
+    <div id="fixedAdminToggleButtonContainer">
+        <button id="toggleAdminPanelButton" class="floating-icon-button">
+            <i class="fas fa-question-circle"></i> <!-- Icon for question mark -->
+        </button>
     </div>
 
     <!-- Floating Export Button (Save Icon) -->
@@ -396,6 +421,7 @@
 
         // Admin UI elements
         const adminPanelContainer = document.getElementById('adminPanelContainer');
+        const toggleAdminPanelButton = document.getElementById('toggleAdminPanelButton'); // Get the question mark button
         const toggleExportReportButton = document.getElementById('toggleExportReportButton');
         const adminPasswordInput = document.getElementById('adminPasswordInput');
         const passwordErrorDisplay = document.getElementById('passwordErrorDisplay'); // New: Get password error display
@@ -413,6 +439,7 @@
 
         let currentUserId = null;
         let authReady = false;
+        let isAdminLoggedIn = false; // Tracks if an admin session is active
         let currentRegistrationsData = []; // To store fetched report data for export
 
         // --- Firebase Authentication ---
@@ -423,7 +450,6 @@
                 console.log("Firebase authenticated. User ID:", currentUserId);
                 // Enable user-facing buttons when Firebase is ready
                 registerButton.disabled = false;
-                // floating export button is always clickable once auth is ready, password check is inside its handler
                 // After authentication, set up real-time queue data listener
                 setupQueueInfoListener();
             } else {
@@ -570,6 +596,8 @@
         function showAdminPanel() {
             adminPanelContainer.style.display = 'flex';
             adminPasswordInput.focus();
+            passwordErrorDisplay.classList.add('hidden'); // Clear previous error
+            adminPasswordInput.value = ''; // Clear input on show
         }
 
         /**
@@ -577,8 +605,17 @@
          */
         function hideAdminPanel() {
             adminPanelContainer.style.display = 'none';
-            adminPasswordInput.value = ''; // Clear password
-            passwordErrorDisplay.classList.add('hidden'); // Hide password error when panel hides
+            adminPasswordInput.value = '';
+            passwordErrorDisplay.classList.add('hidden');
+        }
+
+        /**
+         * Toggles the visibility of admin action buttons (Export and Reset).
+         * @param {boolean} show True to show, False to hide.
+         */
+        function toggleAdminActionButtons(show) {
+            document.getElementById('fixedExportButtonContainer').style.display = show ? 'flex' : 'none';
+            document.getElementById('fixedResetButtonContainer').style.display = show ? 'flex' : 'none';
         }
 
         // --- Firestore Data Operations ---
@@ -822,16 +859,8 @@
 
         /**
          * Exports the current registration report data to a CSV file.
-         * This function now includes a password check.
          */
         function exportRegistrationReportToCsv() {
-            const enteredPassword = adminPasswordInput.value;
-            if (enteredPassword !== ADMIN_PASSWORD) {
-                showAdminPanel();
-                showPasswordError("รหัสผ่านไม่ถูกต้อง"); // Use specific password error display
-                return;
-            }
-
             if (!currentRegistrationsData || currentRegistrationsData.length === 0) {
                 showError("ไม่มีข้อมูลรายงานให้ส่งออก");
                 hideAdminPanel(); // Hide panel if no data
@@ -883,9 +912,6 @@
          * a robust server-side authentication and authorization mechanism, not just a client-side password.
          */
         async function resetAllQueuesToday() {
-            // Password check is already done by the button click handler that calls showConfirmationModal
-            // So, no need to check password here again
-
             if (!authReady) {
                 showError("ระบบยังไม่พร้อม โปรดรอสักครู่และลองอีกครั้ง");
                 return;
@@ -939,16 +965,54 @@
 
         // --- Event Listeners ---
         registerButton.addEventListener('click', registerQueue);
-        
+
+        // Event listener for Question Mark button
+        toggleAdminPanelButton.addEventListener('click', () => {
+            hideMessages(); // Clear other messages
+            if (adminPanelContainer.style.display === 'flex') { // If panel is already visible
+                hideAdminPanel();
+                if (!isAdminLoggedIn) { // Only hide action buttons if not logged in
+                     toggleAdminActionButtons(false);
+                }
+            } else {
+                showAdminPanel(); // Show panel
+                // Do not hide action buttons immediately here, they will appear after successful login
+            }
+        });
+
+        // Event listener for Enter key in password input (in adminPanelContainer)
+        adminPasswordInput.addEventListener('keyup', (event) => {
+            if (event.key === 'Enter') {
+                // Only proceed if password is not empty (as per user's "ต้องใส่รหัสก่อน ถึงจะมีการตรวจเช็ค")
+                if (adminPasswordInput.value.trim() === '') {
+                    showPasswordError("กรุณากรอก Passphrase");
+                    return; // Stop here if empty
+                }
+
+                hideMessages(); // Clear general messages
+                const enteredPassword = adminPasswordInput.value;
+                if (enteredPassword === ADMIN_PASSWORD && authReady) {
+                    isAdminLoggedIn = true; // Set admin session active
+                    hideAdminPanel(); // Hide the panel after successful login
+                    toggleAdminActionButtons(true); // Show Export and Reset buttons
+                    showMessage("เข้าสู่ระบบผู้ดูแลระบบสำเร็จ"); // Optional success message
+                } else {
+                    showPasswordError("Passphrase ไม่ถูกต้อง"); // Updated message
+                    isAdminLoggedIn = false; // Ensure session is not active
+                    toggleAdminActionButtons(false); // Hide action buttons if login fails
+                }
+                event.preventDefault(); // Prevent default form submission if any
+            }
+        });
+
         // Handle click on the Export Button
         toggleExportReportButton.addEventListener('click', () => {
             hideMessages(); // Clear any previous messages
-            const enteredPassword = adminPasswordInput.value;
-            if (enteredPassword === ADMIN_PASSWORD) {
+            if (isAdminLoggedIn) { // Check if admin session is active
                 exportRegistrationReportToCsv();
             } else {
-                showAdminPanel(); // Show panel
-                showPasswordError("รหัสผ่านไม่ถูกต้อง"); // Show error message
+                showAdminPanel(); // Show panel to prompt for password
+                showPasswordError("กรุณากรอก Passphrase ก่อน"); // Prompt message
             }
         });
 
@@ -959,14 +1023,12 @@
                 showError("ระบบยังไม่พร้อม โปรดรอสักครู่และลองอีกครั้ง");
                 return;
             }
-            
             hideMessages(); // Clear any previous messages
-            const enteredPassword = adminPasswordInput.value;
-            if (enteredPassword === ADMIN_PASSWORD) {
-                showConfirmationModal();
+            if (isAdminLoggedIn) { // Check if admin session is active
+                showConfirmationModal(); // Proceed with reset confirmation
             } else {
-                showAdminPanel(); // Show panel
-                showPasswordError("รหัสผ่านไม่ถูกต้อง"); // Show error message
+                showAdminPanel(); // Show panel to prompt for password
+                showPasswordError("กรุณากรอก Passphrase ก่อน"); // Prompt message
             }
         });
 
@@ -976,15 +1038,19 @@
         });
 
         // Modal button listeners
-        confirmResetButton.addEventListener('click', resetAllQueuesToday);
+        confirmResetButton.addEventListener('click', async () => {
+            await resetAllQueuesToday();
+        });
         cancelResetButton.addEventListener('click', hideConfirmationModal);
 
-        // Initial setup for displaying highest queue number after authentication is ready
-        // The onAuthStateChanged listener will call setupQueueInfoListener when authentication is ready.
-        // Also automatically fetch report when app loads and authentication is ready.
+        // Initial setup on page load
         onAuthStateChanged(auth, (user) => {
             if (user) {
-                fetchRegistrationReport(); // Fetch report when auth is ready
+                fetchRegistrationReport();
+                // Ensure admin action buttons are hidden on initial load until login
+                toggleAdminActionButtons(false);
+                // Ensure admin panel is hidden on initial load
+                hideAdminPanel();
             }
         });
     </script>
