@@ -312,6 +312,21 @@
             background-color: #059669; /* Darker green on hover */
         }
 
+        #fixedViewPreRegButtonContainer { /* New View Pre-reg button container */
+            position: fixed;
+            bottom: 20px;
+            left: 200px; /* Positioned to the right of Import button */
+            z-index: 999;
+            display: none; /* Hidden by default, shown by JS */
+        }
+        #toggleViewPreRegButton { /* Specific style for View Pre-reg button */
+            background-color: #3b82f6; /* Blue color for view */
+            color: #fff;
+        }
+        #toggleViewPreRegButton:hover {
+            background-color: #2563eb; /* Darker blue on hover */
+        }
+
 
         #fixedResetButtonContainer {
             position: fixed;
@@ -326,6 +341,81 @@
         }
         #resetQueueButton:hover {
             background-color: #dc2626; /* Darker red on hover */
+        }
+
+        /* Styles for the pre-registered IDs table in modal */
+        #preRegisteredIdsTableContainer {
+            max-height: 400px; /* Limit height for scroll */
+            overflow-y: auto; /* Add scroll if content overflows */
+            margin-top: 15px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+        }
+        #preRegisteredIdsTable {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+        #preRegisteredIdsTable th,
+        #preRegisteredIdsTable td {
+            border: 1px solid #e0e0e0;
+            padding: 8px;
+            text-align: left;
+            vertical-align: middle; /* Align content vertically */
+        }
+        #preRegisteredIdsTable th {
+            background-color: #f8f8f8;
+            font-weight: 600;
+        }
+        #preRegisteredIdsTable tbody tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        #preRegisteredIdsTable tbody tr:hover {
+            background-color: #f0f0f0;
+        }
+        #preRegisteredIdsTable td.actions {
+            white-space: nowrap; /* Prevent buttons from wrapping */
+            text-align: center;
+        }
+        #preRegisteredIdsTable td.actions button {
+            width: 32px; /* Fixed width for icon buttons */
+            height: 32px; /* Fixed height for icon buttons */
+            padding: 0;
+            font-size: 0.9rem;
+            margin: 0 4px; /* Small margin between action buttons */
+            display: inline-flex; /* Align icon nicely */
+            justify-content: center;
+            align-items: center;
+        }
+        #preRegisteredIdsTable td.actions .edit-input {
+            width: calc(100% - 70px); /* Adjust width to make space for buttons */
+            display: inline-block;
+            margin-right: 5px;
+            padding: 4px 8px;
+            font-size: 0.85rem;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+        #deleteSelectedPreRegisteredIdsButton,
+        #clearAllPreRegisteredIdsButton {
+            margin-top: 20px;
+            background-color: #dc2626; /* Red */
+            color: white;
+            padding: 10px 15px;
+            border-radius: 8px;
+            width: auto; /* Allow button to size based on content */
+            display: inline-block;
+            font-size: 0.9rem;
+        }
+        #deleteSelectedPreRegisteredIdsButton:hover,
+        #clearAllPreRegisteredIdsButton:hover {
+            background-color: #b91c1c;
+        }
+        #preRegSummary {
+            text-align: left;
+            margin-top: 10px;
+            font-weight: 500;
+            color: #4a5568;
         }
     </style>
 </head>
@@ -384,10 +474,10 @@
     <!-- Custom Confirmation Modal (For Reset) -->
     <div id="confirmationModal" class="modal">
         <div class="modal-content">
-            <p class="text-lg font-semibold mb-4">ต้องการดำเนินการต่อ?</p>
+            <p id="confirmationModalMessage" class="text-lg font-semibold mb-4">ต้องการดำเนินการต่อ?</p>
             <div class="modal-buttons">
-                <button id="confirmResetButton" class="bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg">ยืนยัน</button>
-                <button id="cancelResetButton" class="bg-gray-400 hover:bg-gray-500 text-white py-2 px-4 rounded-lg">ยกเลิก</button>
+                <button id="confirmActionButton" class="bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg">ยืนยัน</button>
+                <button id="cancelActionButton" class="bg-gray-400 hover:bg-gray-500 text-white py-2 px-4 rounded-lg">ยกเลิก</button>
             </div>
         </div>
     </div>
@@ -412,6 +502,35 @@
         </div>
     </div>
 
+    <!-- New Modal for Viewing/Managing Pre-registered Student IDs -->
+    <div id="viewPreRegisteredIdsModal" class="modal">
+        <div class="modal-content !max-w-xl"> <!-- Increased max-width for better table display -->
+            <h3 class="text-xl font-semibold text-gray-700 mb-2">รายชื่อนักศึกษาที่ลงทะเบียนล่วงหน้า</h3>
+            <p id="preRegSummary" class="text-sm text-gray-600 mb-4">จำนวนนักศึกษาทั้งหมด: <span id="totalPreRegisteredStudents">0</span></p>
+            <div id="preRegisteredIdsTableContainer">
+                <table id="preRegisteredIdsTable">
+                    <thead>
+                        <tr>
+                            <th class="w-1/12"><input type="checkbox" id="selectAllPreRegIds"></th>
+                            <th class="w-6/12">รหัสนักศึกษา</th>
+                            <th class="w-5/12">จัดการ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Data will be inserted here by JavaScript -->
+                    </tbody>
+                </table>
+                <p id="noPreRegDataMessage" class="no-data-message hidden">ยังไม่มีรายชื่อนักศึกษาที่ลงทะเบียนล่วงหน้า</p>
+            </div>
+            <div class="modal-buttons">
+                <button id="deleteSelectedPreRegisteredIdsButton" class="bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg" disabled>ลบรายการที่เลือก</button>
+                <button id="clearAllPreRegisteredIdsButton" class="bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg">ลบรายชื่อทั้งหมด</button>
+                <button id="closeViewPreRegModalButton" class="bg-gray-400 hover:bg-gray-500 text-white py-2 px-4 rounded-lg">ปิด</button>
+            </div>
+        </div>
+    </div>
+
+
     <!-- Floating Toggle Button (Question Mark Icon) -->
     <div id="fixedAdminToggleButtonContainer">
         <button id="toggleAdminPanelButton" class="floating-icon-button">
@@ -430,6 +549,13 @@
     <div id="fixedImportButtonContainer">
         <button id="toggleImportIdsButton" class="floating-icon-button">
             <i class="fas fa-file-import"></i> <!-- Icon for import -->
+        </button>
+    </div>
+
+    <!-- New Floating View Pre-registered Button (Users Icon) -->
+    <div id="fixedViewPreRegButtonContainer">
+        <button id="toggleViewPreRegButton" class="floating-icon-button">
+            <i class="fas fa-users"></i> <!-- Icon for users/list -->
         </button>
     </div>
 
@@ -483,22 +609,36 @@
         const toggleAdminPanelButton = document.getElementById('toggleAdminPanelButton'); // Get the question mark button
         const toggleExportReportButton = document.getElementById('toggleExportReportButton');
         const toggleImportIdsButton = document.getElementById('toggleImportIdsButton'); // New: Import button
+        const toggleViewPreRegButton = document.getElementById('toggleViewPreRegButton'); // New: View Pre-reg button
         const adminPasswordInput = document.getElementById('adminPasswordInput');
         const passwordErrorDisplay = document.getElementById('passwordErrorDisplay');
         const resetQueueButton = document.getElementById('resetQueueButton');
 
-        // New Import Modal elements
+        // Import Modal elements
         const importStudentIdsModal = document.getElementById('importStudentIdsModal');
         const preRegisteredIdsTextareaModal = document.getElementById('preRegisteredIdsTextareaModal');
         const confirmImportIdsButton = document.getElementById('confirmImportIdsButton');
         const cancelImportIdsButton = document.getElementById('cancelImportIdsButton');
         const preRegSaveErrorDisplayModal = document.getElementById('preRegSaveErrorDisplayModal');
 
+        // View/Manage Pre-registered IDs Modal elements
+        const viewPreRegisteredIdsModal = document.getElementById('viewPreRegisteredIdsModal');
+        const preRegSummary = document.getElementById('preRegSummary');
+        const totalPreRegisteredStudentsSpan = document.getElementById('totalPreRegisteredStudents');
+        const preRegisteredIdsTable = document.getElementById('preRegisteredIdsTable');
+        const preRegisteredIdsTableBody = preRegisteredIdsTable.querySelector('tbody');
+        const noPreRegDataMessage = document.getElementById('noPreRegDataMessage');
+        const selectAllPreRegIdsCheckbox = document.getElementById('selectAllPreRegIds');
+        const deleteSelectedPreRegisteredIdsButton = document.getElementById('deleteSelectedPreRegisteredIdsButton');
+        const clearAllPreRegisteredIdsButton = document.getElementById('clearAllPreRegisteredIdsButton');
+        const closeViewPreRegModalButton = document.getElementById('closeViewPreRegModalButton');
 
-        // Modal elements (existing for reset confirmation)
-        const confirmationModal = document.getElementById('confirmationModal'); // This is for Reset confirmation
-        const confirmResetButton = document.getElementById('confirmResetButton');
-        const cancelResetButton = document.getElementById('cancelResetButton');
+
+        // General Confirmation Modal elements (reused for reset, single delete, multi-delete, clear all)
+        const confirmationModal = document.getElementById('confirmationModal');
+        const confirmationModalMessage = document.getElementById('confirmationModalMessage');
+        const confirmActionButton = document.getElementById('confirmActionButton');
+        const cancelActionButton = document.getElementById('cancelActionButton');
 
 
         // Admin password (IMPORTANT: For a real app, this should NOT be hardcoded client-side!)
@@ -508,6 +648,9 @@
         let authReady = false;
         let isAdminLoggedIn = false; // Tracks if an admin session is active
         let currentRegistrationsData = []; // To store fetched report data for export
+        let preRegisteredStudentsData = []; // To store fetched pre-registered student IDs for view/manage
+        let selectedPreRegIdsForDeletion = new Set(); // To store selected IDs for multi-delete
+
 
         // --- Firebase Authentication ---
         onAuthStateChanged(auth, async (user) => {
@@ -658,14 +801,22 @@
         }
 
         /**
-         * Shows the general confirmation modal (used for Reset).
+         * Shows the general confirmation modal.
+         * @param {string} message The message to display.
+         * @param {Function} confirmCallback Function to call on confirm.
          */
-        function showConfirmationModal() {
+        function showConfirmationModal(message, confirmCallback) {
+            confirmationModalMessage.textContent = message;
+            confirmActionButton.onclick = async () => {
+                await confirmCallback();
+                hideConfirmationModal();
+            };
+            cancelActionButton.onclick = hideConfirmationModal;
             confirmationModal.style.display = 'flex';
         }
 
         /**
-         * Hides the general confirmation modal (used for Reset).
+         * Hides the general confirmation modal.
          */
         function hideConfirmationModal() {
             confirmationModal.style.display = 'none';
@@ -691,6 +842,25 @@
         }
 
         /**
+         * Shows the View/Manage Pre-registered IDs modal.
+         */
+        async function showViewPreRegisteredIdsModal() {
+            viewPreRegisteredIdsModal.style.display = 'flex';
+            await fetchPreRegisteredIds(); // Fetch data before rendering
+            renderPreRegisteredIdsTable(); // Render table
+            selectedPreRegIdsForDeletion.clear(); // Clear selections on open
+            updateDeleteSelectedButtonState(); // Update button state
+            selectAllPreRegIdsCheckbox.checked = false; // Uncheck select all
+        }
+
+        /**
+         * Hides the View/Manage Pre-registered IDs modal.
+         */
+        function hideViewPreRegisteredIdsModal() {
+            viewPreRegisteredIdsModal.style.display = 'none';
+        }
+
+        /**
          * Shows the admin panel (only password input).
          */
         function showAdminPanel() {
@@ -710,12 +880,13 @@
         }
 
         /**
-         * Toggles the visibility of admin action buttons (Export, Import, Reset).
+         * Toggles the visibility of admin action buttons (Export, Import, View/Manage, Reset).
          * @param {boolean} show True to show, False to hide.
          */
         function toggleAdminActionButtons(show) {
             document.getElementById('fixedExportButtonContainer').style.display = show ? 'flex' : 'none';
             document.getElementById('fixedImportButtonContainer').style.display = show ? 'flex' : 'none';
+            document.getElementById('fixedViewPreRegButtonContainer').style.display = show ? 'flex' : 'none'; // New button
             document.getElementById('fixedResetButtonContainer').style.display = show ? 'flex' : 'none';
         }
 
@@ -805,7 +976,8 @@
             const preRegDocSnap = await getDoc(preRegDocRef);
 
             if (!preRegDocSnap.exists()) {
-                showError("รหัสนักศึกษานี้ไม่ได้รับการลงทะเบียนล่วงหน้า หรือไม่ถูกต้อง");
+                // Updated error message
+                showError("คุณยังไม่มีรายชื่ออยู่ในระบบเช็คชื่อ กรุณาแจ้งอาจารย์ผู้สอน");
                 showLoading(false);
                 return;
             }
@@ -840,7 +1012,7 @@
 
                 let newQueueNumber = highestQueueNumber + 1;
                 if (newQueueNumber > 170) {
-                    showError("คิวเต็มแล้วสำหรับวันนี้ โปรดลองใหม่ในวันพรหัสบดี");
+                    showError("คิวเต็มแล้วสำหรับวันนี้ โปรดลองใหม่ในวันพฤหัสบดี");
                     showLoading(false);
                     return;
                 }
@@ -995,8 +1167,7 @@
         function exportRegistrationReportToCsv() {
             if (!currentRegistrationsData || currentRegistrationsData.length === 0) {
                 showError("ไม่มีข้อมูลรายงานให้ส่งออก");
-                hideAdminPanel();
-                return;
+                return; // Do not hide admin panel or toggle buttons here
             }
 
             const headers = ["ลำดับ", "รหัสนักศึกษา", "เวลาลงทะเบียน", "ละติจูด", "ลองจิจูด"]; // Keep headers for export
@@ -1104,8 +1275,6 @@
          * Saves pre-registered student IDs from the textarea to Firestore.
          */
         async function savePreRegisteredIds() {
-            // This function is now called from confirmImportIdsButton after import modal is shown
-
             hideMessages(); // Clear all messages
             preRegSaveErrorDisplayModal.classList.add('hidden'); // Hide specific pre-reg save error
 
@@ -1116,7 +1285,7 @@
             }
 
             // Split by newline or comma, filter out empty strings
-            const idsToSave = idsToSaveText.split(/[\n,]+/)
+            const idsToSave = idsToSaveText.split(/[\n,;]+/) // Also split by semicolon
                                            .map(id => id.trim())
                                            .filter(id => id.length > 0);
 
@@ -1162,6 +1331,317 @@
             }
         }
 
+        /**
+         * Fetches all pre-registered student IDs from Firestore.
+         */
+        async function fetchPreRegisteredIds() {
+            if (!authReady) {
+                console.warn("Authentication not ready for fetching pre-registered IDs.");
+                showError("ระบบยังไม่พร้อม โปรดรอสักครู่และลองอีกครั้ง");
+                return;
+            }
+
+            preRegisteredStudentsData = []; // Clear previous data
+            try {
+                showLoading(true);
+                const preRegCollectionRef = collection(db, `artifacts/${appId}/public/data/preRegisteredStudentIds`);
+                const querySnapshot = await getDocs(preRegCollectionRef);
+                querySnapshot.forEach(docSnap => {
+                    preRegisteredStudentsData.push(docSnap.id); // Store just the ID
+                });
+                preRegisteredStudentsData.sort(); // Sort alphabetically for display
+            } catch (e) {
+                console.error("Error fetching pre-registered IDs:", e);
+                showError("เกิดข้อผิดพลาดในการดึงรายชื่อนักศึกษาล่วงหน้า");
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        /**
+         * Renders the pre-registered student IDs into the table in the view modal.
+         */
+        function renderPreRegisteredIdsTable() {
+            preRegisteredIdsTableBody.innerHTML = ''; // Clear existing rows
+            selectedPreRegIdsForDeletion.clear(); // Clear selections
+            selectAllPreRegIdsCheckbox.checked = false; // Uncheck select-all
+            updateDeleteSelectedButtonState(); // Update button state
+
+            totalPreRegisteredStudentsSpan.textContent = preRegisteredStudentsData.length;
+
+            if (preRegisteredStudentsData.length === 0) {
+                noPreRegDataMessage.classList.remove('hidden');
+                preRegisteredIdsTableContainer.classList.add('hidden'); // Hide table container if no data
+                clearAllPreRegisteredIdsButton.disabled = true; // Disable clear all if no data
+                return;
+            } else {
+                noPreRegDataMessage.classList.add('hidden');
+                preRegisteredIdsTableContainer.classList.remove('hidden'); // Show table container
+                clearAllPreRegisteredIdsButton.disabled = false; // Enable clear all if data exists
+            }
+
+            preRegisteredStudentsData.forEach(id => {
+                const row = preRegisteredIdsTableBody.insertRow();
+                row.dataset.studentId = id; // Store ID on the row for easy access
+
+                // Checkbox cell
+                const checkboxCell = row.insertCell();
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.className = 'pre-reg-checkbox';
+                checkbox.dataset.studentId = id;
+                checkbox.addEventListener('change', updateDeleteSelectedButtonState);
+                checkboxCell.appendChild(checkbox);
+
+                // Student ID cell
+                const idCell = row.insertCell();
+                idCell.textContent = id;
+                idCell.dataset.originalId = id; // Store original ID for edit
+
+                // Actions cell
+                const actionsCell = row.insertCell();
+                actionsCell.className = 'actions';
+
+                const editButton = document.createElement('button');
+                editButton.className = 'bg-yellow-500 hover:bg-yellow-600 text-white rounded-md';
+                editButton.innerHTML = '<i class="fas fa-pencil-alt"></i>';
+                editButton.title = 'แก้ไข';
+                editButton.addEventListener('click', () => enableInlineEdit(row, id));
+
+                const deleteButton = document.createElement('button');
+                deleteButton.className = 'bg-red-500 hover:bg-red-600 text-white rounded-md';
+                deleteButton.innerHTML = '<i class="fas fa-trash-alt"></i>';
+                deleteButton.title = 'ลบ';
+                deleteButton.addEventListener('click', () => showConfirmationModal(`คุณแน่ใจหรือไม่ที่ต้องการลบรหัสนักศึกษา ${id} นี้?`, async () => {
+                    await deletePreRegisteredId(id);
+                    await fetchPreRegisteredIds(); // Re-fetch data after deletion
+                    renderPreRegisteredIdsTable(); // Re-render table
+                    showMessage(`ลบนักศึกษา ${id} สำเร็จ`);
+                }));
+
+                actionsCell.appendChild(editButton);
+                actionsCell.appendChild(deleteButton);
+            });
+        }
+
+        /**
+         * Enables inline editing for a specific row in the pre-registered IDs table.
+         * @param {HTMLTableRowElement} row The table row to enable editing for.
+         * @param {string} originalId The original student ID of the row.
+         */
+        function enableInlineEdit(row, originalId) {
+            const idCell = row.cells[1]; // Student ID is the second cell (index 1)
+            const actionsCell = row.cells[2]; // Actions are in the third cell (index 2)
+
+            const originalTextContent = idCell.textContent; // Store current text for cancel
+
+            // Create input field
+            const inputField = document.createElement('input');
+            inputField.type = 'number'; // Student IDs are numbers
+            inputField.value = originalTextContent;
+            inputField.className = 'edit-input';
+            inputField.maxLength = 10;
+            inputField.minLength = 10;
+
+            // Create Save button
+            const saveButton = document.createElement('button');
+            saveButton.className = 'bg-green-500 hover:bg-green-600 text-white rounded-md';
+            saveButton.innerHTML = '<i class="fas fa-check"></i>';
+            saveButton.title = 'บันทึก';
+            saveButton.addEventListener('click', async () => {
+                const newId = inputField.value.trim();
+                if (newId.length !== 10 || isNaN(newId)) {
+                    showPreRegSaveErrorModal("รหัสนักศึกษาใหม่ไม่ถูกต้อง (ต้องเป็นตัวเลข 10 หลัก)");
+                    return;
+                }
+                if (newId === originalId) { // No change
+                    disableInlineEdit(row, originalId);
+                    return;
+                }
+                // Check if newId already exists
+                const newIdDocRef = doc(db, `artifacts/${appId}/public/data/preRegisteredStudentIds`, newId);
+                const newIdDocSnap = await getDoc(newIdDocRef);
+                if (newIdDocSnap.exists()) {
+                    showPreRegSaveErrorModal("รหัสนักศึกษาใหม่นี้มีอยู่ในระบบแล้ว");
+                    return;
+                }
+
+                showConfirmationModal(`คุณแน่ใจหรือไม่ที่ต้องการเปลี่ยนรหัส ${originalId} เป็น ${newId}?`, async () => {
+                    await updatePreRegisteredId(originalId, newId);
+                    await fetchPreRegisteredIds(); // Re-fetch data to update table
+                    renderPreRegisteredIdsTable(); // Re-render table
+                    showMessage(`แก้ไขรหัส ${originalId} เป็น ${newId} สำเร็จ`);
+                });
+            });
+
+            // Create Cancel button
+            const cancelButton = document.createElement('button');
+            cancelButton.className = 'bg-gray-500 hover:bg-gray-600 text-white rounded-md';
+            cancelButton.innerHTML = '<i class="fas fa-times"></i>';
+            cancelButton.title = 'ยกเลิก';
+            cancelButton.addEventListener('click', () => disableInlineEdit(row, originalId));
+
+            // Clear cell and append input/buttons
+            idCell.innerHTML = '';
+            idCell.appendChild(inputField);
+            actionsCell.innerHTML = '';
+            actionsCell.appendChild(saveButton);
+            actionsCell.appendChild(cancelButton);
+
+            inputField.focus(); // Focus on the input field
+        }
+
+        /**
+         * Disables inline editing for a specific row and restores original content/buttons.
+         * @param {HTMLTableRowElement} row The table row to disable editing for.
+         * @param {string} studentId The student ID to restore.
+         */
+        function disableInlineEdit(row, studentId) {
+            const idCell = row.cells[1];
+            const actionsCell = row.cells[2];
+
+            idCell.textContent = studentId; // Restore original ID text
+
+            // Restore original buttons
+            actionsCell.innerHTML = '';
+            const editButton = document.createElement('button');
+            editButton.className = 'bg-yellow-500 hover:bg-yellow-600 text-white rounded-md';
+            editButton.innerHTML = '<i class="fas fa-pencil-alt"></i>';
+            editButton.title = 'แก้ไข';
+            editButton.addEventListener('click', () => enableInlineEdit(row, studentId));
+
+            const deleteButton = document.createElement('button');
+            deleteButton.className = 'bg-red-500 hover:bg-red-600 text-white rounded-md';
+            deleteButton.innerHTML = '<i class="fas fa-trash-alt"></i>';
+            deleteButton.title = 'ลบ';
+            deleteButton.addEventListener('click', () => showConfirmationModal(`คุณแน่ใจหรือไม่ที่ต้องการลบรหัสนักศึกษา ${studentId} นี้?`, async () => {
+                await deletePreRegisteredId(studentId);
+                await fetchPreRegisteredIds();
+                renderPreRegisteredIdsTable();
+                showMessage(`ลบนักศึกษา ${studentId} สำเร็จ`);
+            }));
+
+            actionsCell.appendChild(editButton);
+            actionsCell.appendChild(deleteButton);
+        }
+
+        /**
+         * Updates a pre-registered student ID in Firestore (deletes old, creates new).
+         * @param {string} oldId The current student ID.
+         * @param {string} newId The new student ID.
+         */
+        async function updatePreRegisteredId(oldId, newId) {
+            try {
+                showLoading(true);
+                const preRegCollectionRef = collection(db, `artifacts/${appId}/public/data/preRegisteredStudentIds`);
+                const batch = writeBatch(db);
+
+                // Delete old document
+                const oldDocRef = doc(preRegCollectionRef, oldId);
+                batch.delete(oldDocRef);
+
+                // Create new document
+                const newDocRef = doc(preRegCollectionRef, newId);
+                batch.set(newDocRef, { exists: true, addedBy: currentUserId, timestamp: serverTimestamp(), updatedFrom: oldId }); // Add updatedFrom for tracking
+
+                await batch.commit();
+            } catch (e) {
+                console.error("Error updating pre-registered ID:", e);
+                throw e; // Re-throw to be caught by calling function
+            } finally {
+                showLoading(false);
+            }
+        }
+
+
+        /**
+         * Deletes a single pre-registered student ID from Firestore.
+         * @param {string} studentId The ID to delete.
+         */
+        async function deletePreRegisteredId(studentId) {
+            try {
+                showLoading(true);
+                const docRef = doc(db, `artifacts/${appId}/public/data/preRegisteredStudentIds`, studentId);
+                await deleteDoc(docRef);
+            } catch (e) {
+                console.error("Error deleting pre-registered ID:", e);
+                showError("เกิดข้อผิดพลาดในการลบรายชื่อนักศึกษา");
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        /**
+         * Deletes multiple selected pre-registered student IDs from Firestore.
+         * @param {Set<string>} idsToDelete A set of student IDs to delete.
+         */
+        async function deleteSelectedPreRegisteredIds(idsToDelete) {
+            if (idsToDelete.size === 0) {
+                showMessage("โปรดเลือกรหัสนักศึกษาที่ต้องการลบ");
+                return;
+            }
+
+            try {
+                showLoading(true);
+                const batch = writeBatch(db);
+                idsToDelete.forEach(id => {
+                    const docRef = doc(db, `artifacts/${appId}/public/data/preRegisteredStudentIds`, id);
+                    batch.delete(docRef);
+                });
+                await batch.commit();
+
+                showMessage(`ลบนักศึกษาที่เลือกจำนวน ${idsToDelete.size} รายการสำเร็จ`);
+                selectedPreRegIdsForDeletion.clear(); // Clear selections
+                await fetchPreRegisteredIds(); // Re-fetch and re-render table
+                renderPreRegisteredIdsTable();
+            } catch (e) {
+                console.error("Error deleting selected pre-registered IDs:", e);
+                showError("เกิดข้อผิดพลาดในการลบรายชื่อนักศึกษาที่เลือก");
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        /**
+         * Clears all pre-registered student IDs from Firestore.
+         */
+        async function clearAllPreRegisteredIds() {
+            try {
+                showLoading(true);
+                const preRegCollectionRef = collection(db, `artifacts/${appId}/public/data/preRegisteredStudentIds`);
+                const existingDocsSnapshot = await getDocs(preRegCollectionRef);
+                
+                if (existingDocsSnapshot.empty) {
+                    showMessage("ไม่มีข้อมูลรายชื่อนักศึกษาล่วงหน้าให้ลบ");
+                    return;
+                }
+
+                const deleteBatch = writeBatch(db);
+                existingDocsSnapshot.forEach(docSnap => {
+                    deleteBatch.delete(docSnap.ref);
+                });
+                await deleteBatch.commit();
+
+                showMessage("ลบรายชื่อนักศึกษาล่วงหน้าทั้งหมดสำเร็จแล้ว");
+                preRegisteredStudentsData = []; // Clear local data
+                renderPreRegisteredIdsTable(); // Re-render empty table
+            } catch (e) {
+                console.error("Error clearing all pre-registered IDs:", e);
+                showError("เกิดข้อผิดพลาดในการลบรายชื่อนักศึกษาล่วงหน้าทั้งหมด");
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        /**
+         * Updates the state of the "Delete Selected" button based on checkbox selections.
+         */
+        function updateDeleteSelectedButtonState() {
+            const checkboxes = preRegisteredIdsTableBody.querySelectorAll('.pre-reg-checkbox:checked');
+            selectedPreRegIdsForDeletion.clear();
+            checkboxes.forEach(cb => selectedPreRegIdsForDeletion.add(cb.dataset.studentId));
+            deleteSelectedPreRegisteredIdsButton.disabled = selectedPreRegIdsForDeletion.size === 0;
+        }
 
         // --- Event Listeners ---
         registerButton.addEventListener('click', registerQueue);
@@ -1200,7 +1680,7 @@
                 if (enteredPassword === ADMIN_PASSWORD && authReady) {
                     isAdminLoggedIn = true;
                     hideAdminPanel(); // Hide the password input panel
-                    toggleAdminActionButtons(true); // Show Export, Import, Reset buttons
+                    toggleAdminActionButtons(true); // Show Export, Import, View/Manage, Reset buttons
                     showMessage("เข้าสู่ระบบผู้ดูแลระบบสำเร็จ");
                 } else {
                     showPasswordError("Passphrase ไม่ถูกต้อง");
@@ -1233,6 +1713,17 @@
             }
         });
 
+        // Handle click on the View/Manage Pre-registered Button (New)
+        toggleViewPreRegButton.addEventListener('click', () => {
+            hideMessages(); // Clear any previous messages
+            if (isAdminLoggedIn) { // Check if admin session is active
+                showViewPreRegisteredIdsModal(); // Show the new view/manage modal
+            } else {
+                showAdminPanel(); // Show panel to prompt for password
+                showPasswordError("กรุณากรอก Passphrase ก่อน"); // Prompt message
+            }
+        });
+
 
         // Handle click on the Reset Queue Button
         resetQueueButton.addEventListener('click', () => {
@@ -1242,7 +1733,9 @@
             }
             hideMessages(); // Clear any previous messages
             if (isAdminLoggedIn) { // Check if admin session is active
-                showConfirmationModal(); // Proceed with reset confirmation
+                showConfirmationModal("คุณแน่ใจหรือไม่ที่ต้องการรีเซ็ตคิวทั้งหมดสำหรับวันนี้?", async () => {
+                    await resetAllQueuesToday();
+                });
             } else {
                 showAdminPanel(); // Show panel to prompt for password
                 showPasswordError("กรุณากรอก Passphrase ก่อน"); // Prompt message
@@ -1255,24 +1748,46 @@
         });
 
         // Import Modal Button Listeners
-        confirmImportIdsButton.addEventListener('click', savePreRegisteredIds); // This now directly calls save
+        confirmImportIdsButton.addEventListener('click', savePreRegisteredIds);
         cancelImportIdsButton.addEventListener('click', hideImportStudentIdsModal);
 
-        // New event listener for preRegisteredIdsTextareaModal to clear error on input
+        // Event listener for preRegisteredIdsTextareaModal to clear error on input
         preRegisteredIdsTextareaModal.addEventListener('input', () => {
             preRegSaveErrorDisplayModal.classList.add('hidden');
         });
 
+        // View/Manage Pre-registered Modal Button Listeners
+        closeViewPreRegModalButton.addEventListener('click', hideViewPreRegisteredIdsModal);
 
-        // Reset Confirmation Modal button listeners
-        confirmResetButton.addEventListener('click', async () => {
-            await resetAllQueuesToday();
-            // After reset, ensure admin session is cleared and buttons are hidden IF question mark button was used to toggle
-            // For now, keep buttons visible as the user might want to do other admin tasks
-            // isAdminLoggedIn = false; // Do not reset isAdminLoggedIn here, as they might do more admin tasks
-            // toggleAdminActionButtons(false); // Do not hide action buttons here
+        // Select All checkbox listener
+        selectAllPreRegIdsCheckbox.addEventListener('change', (event) => {
+            const isChecked = event.target.checked;
+            preRegisteredIdsTableBody.querySelectorAll('.pre-reg-checkbox').forEach(checkbox => {
+                checkbox.checked = isChecked;
+            });
+            updateDeleteSelectedButtonState();
         });
-        cancelResetButton.addEventListener('click', hideConfirmationModal);
+
+        // Delete Selected button listener
+        deleteSelectedPreRegisteredIdsButton.addEventListener('click', () => {
+            if (selectedPreRegIdsForDeletion.size > 0) {
+                showConfirmationModal(`คุณแน่ใจหรือไม่ที่ต้องการลบนักศึกษาที่เลือกจำนวน ${selectedPreRegIdsForDeletion.size} รายการ?`, async () => {
+                    await deleteSelectedPreRegisteredIds(selectedPreRegIdsForDeletion);
+                    hideViewPreRegisteredIdsModal(); // Hide modal after deletion
+                });
+            } else {
+                showMessage("โปรดเลือกรหัสนักศึกษาที่ต้องการลบก่อน");
+            }
+        });
+
+        // Clear All Pre-registered IDs button listener
+        clearAllPreRegisteredIdsButton.addEventListener('click', () => {
+            showConfirmationModal("คุณแน่ใจหรือไม่ที่ต้องการลบรายชื่อนักศึกษาที่ลงทะเบียนล่วงหน้าทั้งหมด? การดำเนินการนี้ไม่สามารถย้อนกลับได้", async () => {
+                await clearAllPreRegisteredIds();
+                hideViewPreRegisteredIdsModal(); // Hide modal after clearing
+            });
+        });
+
 
         // Initial setup on page load
         onAuthStateChanged(auth, (user) => {
