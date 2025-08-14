@@ -108,7 +108,7 @@
             width: 100%;
             max-width: 350px; /* Reduced max-width for each table */
             border-collapse: collapse;
-            margin: 0 auto; /* Center the table within its container */
+            /* margin: 0 auto; Removed margin auto */
         }
         .report-table th, .report-table td {
             border: 1px solid #e0e0e0;
@@ -321,10 +321,10 @@
                 กำลังโหลดรายงาน...
             </div>
             <!-- Modified to display two columns for tables -->
-            <div id="registrationReport" class="mt-4 flex flex-wrap justify-center gap-4">
-                <div id="leftTableContainer" class="w-full md:w-1/2"></div>
-                <div id="rightTableContainer" class="w-full md:w-1/2"></div>
-                <p id="noReportDataMessage" class="no-data-message hidden w-full">ยังไม่มีข้อมูลการลงทะเบียนสำหรับวันนี้</p>
+            <div id="registrationReport" class="mt-4 flex flex-wrap -mx-2">
+                <div id="leftTableContainer" class="w-full md:w-1/2 px-2"></div>
+                <div id="rightTableContainer" class="w-full md:w-1/2 px-2"></div>
+                <p id="noReportDataMessage" class="no-data-message hidden w-full px-2">ยังไม่มีข้อมูลการลงทะเบียนสำหรับวันนี้</p>
             </div>
         </div>
 
