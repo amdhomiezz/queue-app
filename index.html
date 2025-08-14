@@ -457,10 +457,18 @@
         <p class="text-gray-600 mb-1">กรอกรหัสนักศึกษา 10 หลัก</p>
         <p class="text-gray-600 mb-6">เพื่อรับหมายเลขประจำตัวผู้เรียนประจำวันนี้ เพื่อใช้ในการทำ Workshop</p>
 
-        <div class="mb-4 text-left">
-            <label for="studentIdInput" class="block text-gray-700 text-sm font-medium mb-2">รหัสนักศึกษา:</label>
-            <!-- Changed type to "text" and removed number-specific attributes -->
-            <input type="text" id="studentIdInput" placeholder="กรอกรหัสนักศึกษาของคุณ เช่น 1660312345, 1650354321" class="focus:ring-2 focus:ring-green-300 focus:border-transparent">
+        <!-- Input fields section: student ID and daily answer -->
+        <div class="mb-4 flex flex-wrap -mx-2 items-end">
+            <!-- Student ID input (left column) -->
+            <div class="w-full md:w-1/2 px-2">
+                <label for="studentIdInput" class="block text-gray-700 text-sm font-medium mb-2">รหัสนักศึกษา:</label>
+                <input type="text" id="studentIdInput" placeholder="กรอกรหัสนักศึกษาของคุณ เช่น 1660312345, 1650354321" class="focus:ring-2 focus:ring-green-300 focus:border-transparent">
+            </div>
+            <!-- Daily Question/Answer input (right column) -->
+            <div class="w-full md:w-1/2 px-2">
+                <label for="dailyAnswerInput" class="block text-gray-700 text-sm font-medium mb-2">คำถามประจำวันนี้?:</label>
+                <input type="text" id="dailyAnswerInput" placeholder="กรอกคำตอบของคุณ" class="focus:ring-2 focus:ring-green-300 focus:border-transparent">
+            </div>
         </div>
 
         <button id="registerButton" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1" disabled>
@@ -632,6 +640,7 @@
 
         // UI elements
         const studentIdInput = document.getElementById('studentIdInput');
+        const dailyAnswerInput = document.getElementById('dailyAnswerInput'); // Get the new daily answer input
         const registerButton = document.getElementById('registerButton');
         const messageDisplay = document.getElementById('messageDisplay');
         const errorDisplay = document.getElementById('errorDisplay');
@@ -1008,9 +1017,18 @@
             showLoading(true);
 
             const studentId = studentIdInput.value.trim();
+            const dailyAnswer = dailyAnswerInput.value.trim(); // Get the daily answer
+
             // Validate studentId for 10 digits and numeric content
             if (studentId.length !== 10 || isNaN(studentId)) {
                 showError("กรุณากรอกรหัสนักศึกษาให้ครบ 10 หลัก และเป็นตัวเลขเท่านั้น");
+                showLoading(false);
+                return;
+            }
+
+            // Simple validation for daily answer - can be adjusted
+            if (dailyAnswer === "") {
+                showError("กรุณากรอกคำตอบสำหรับคำถามประจำวันนี้");
                 showLoading(false);
                 return;
             }
@@ -1097,6 +1115,7 @@
                         studentId: studentId,
                         queueNumber: nextQueueNumber,
                         registrationDate: currentDate,
+                        dailyAnswer: dailyAnswer, // Include the daily answer
                         deviceId: deviceId,
                         timestamp: serverTimestamp(),
                         latitude: latitude,
@@ -1110,6 +1129,7 @@
                 localStorage.setItem(`lastRegistrationDate_${appId}_${deviceId}`, currentDate);
                 showMessage(`คุณได้รับคิวหมายเลข: ${newQueueNumber}`);
                 studentIdInput.value = '';
+                dailyAnswerInput.value = ''; // Clear daily answer input
                 fetchRegistrationReport();
 
             } catch (e) {
@@ -1185,21 +1205,21 @@
                                     <tr>
                                         <th>ลำดับ</th>
                                         <th>รหัสนักศึกษา</th>
+                                        <th>คำตอบประจำวัน</th> <!-- New header -->
                                         <th>วันเวลาลงทะเบียน</th> <!-- Updated header -->
-                                        <!-- Removed Latitude and Longitude columns from display -->
                                     </tr>
                                 </thead>
                                 <tbody>
                         `;
                         data.forEach(reg => {
                             const registrationDateTime = reg.timestamp && reg.timestamp.toDate ?
-                                reg.timestamp.toDate().toLocaleString('th-TH', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'N/A'; // Updated toLocaleString
+                                reg.timestamp.toDate().toLocaleString('th-TH', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'N/A';
                             tableHtml += `
                                 <tr>
                                     <td>${reg.queueNumber}</td>
                                     <td>${reg.studentId}</td>
-                                    <td>${registrationDateTime}</td> <!-- Updated data display -->
-                                    <!-- Removed Latitude and Longitude data from display -->
+                                    <td>${reg.dailyAnswer || 'N/A'}</td> <!-- Display daily answer -->
+                                    <td>${registrationDateTime}</td>
                                 </tr>
                             `;
                         });
@@ -1241,7 +1261,8 @@
                 return false; // Indicate failure to export
             }
 
-            const headers = ["ลำดับ", "รหัสนักศึกษา", "เวลาลงทะเบียน", "ละติจูด", "ลองจิจูด"]; // Keep headers for export
+            // Updated headers for CSV
+            const headers = ["ลำดับ", "รหัสนักศึกษา", "คำตอบประจำวัน", "เวลาลงทะเบียน", "ละติจูด", "ลองจิจูด"];
             // Escape values that might contain commas or newlines
             const escapeCsv = (value) => {
                 if (value === null || value === undefined) return '';
@@ -1254,7 +1275,7 @@
 
             const rows = currentRegistrationsData.map(reg => {
                 const registrationDateTime = reg.timestamp && reg.timestamp.toDate ?
-                    reg.timestamp.toDate().toLocaleString('th-TH', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'N/A'; // Updated toLocaleString
+                    reg.timestamp.toDate().toLocaleString('th-TH', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'N/A';
                 
                 const latitude = typeof reg.latitude === 'number' ? reg.latitude.toFixed(4) : reg.latitude;
                 const longitude = typeof reg.longitude === 'number' ? reg.longitude.toFixed(4) : reg.longitude;
@@ -1262,7 +1283,8 @@
                 return [
                     escapeCsv(reg.queueNumber),
                     escapeCsv(reg.studentId),
-                    escapeCsv(registrationDateTime), // Updated data display
+                    escapeCsv(reg.dailyAnswer || 'N/A'), // Include daily answer in CSV
+                    escapeCsv(registrationDateTime),
                     escapeCsv(latitude),
                     escapeCsv(longitude)
                 ].join(',');
@@ -1364,7 +1386,7 @@
                                            .filter(id => id.length > 0);
 
             if (idsToSave.length === 0) {
-                showPreRegSaveErrorModal("ไม่พบรหัสนักษาที่ถูกต้อง กรุณาตรวจสอบรูปแบบ (10 หลัก, ตัวเลข)");
+                showPreRegSaveErrorModal("ไม่พบรหัสนักศึกษาที่ถูกต้อง กรุณาตรวจสอบรูปแบบ (10 หลัก, ตัวเลข)");
                 console.log("Validation failed: Parsed IDs list is empty.");
                 return;
             }
