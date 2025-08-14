@@ -270,17 +270,26 @@
             bottom: 20px;
             left: 20px;
             z-index: 999;
-            /* Initial state for hover effect */
+            display: flex; /* Always flex for layout */
+            /* Default for desktop: hidden until hover */
             opacity: 0;
             visibility: hidden;
-            pointer-events: none; /* Cannot click when invisible */
+            pointer-events: none;
             transition: opacity 0.3s ease, visibility 0.3s ease;
         }
 
+        /* Show on hover for desktop */
         #fixedAdminToggleButtonContainer:hover {
             opacity: 1;
             visibility: visible;
-            pointer-events: auto; /* Can click when visible */
+            pointer-events: auto;
+        }
+
+        /* Media query for mobile (small screens): hide completely */
+        @media (max-width: 767px) {
+            #fixedAdminToggleButtonContainer {
+                display: none; /* Override flex, hide completely on mobile */
+            }
         }
 
         #adminLoginStatusMessage {
@@ -663,7 +672,7 @@
         const totalPreRegisteredStudentsSpan = document.getElementById('totalPreRegisteredStudents');
         const preRegisteredIdsTable = document.getElementById('preRegisteredIdsTable');
         const preRegisteredIdsTableBody = preRegisteredIdsTable.querySelector('tbody');
-        const noPreRegDataMessage = document.getElementById('noPreRegDataMessage');
+        const noPreRegDataMessage = document.getElementById('noReportDataMessage');
         const selectAllPreRegIdsCheckbox = document.getElementById('selectAllPreRegIds');
         const deleteSelectedPreRegisteredIdsButton = document.getElementById('deleteSelectedPreRegisteredIdsButton');
         const clearAllPreRegisteredIdsButton = document.getElementById('clearAllPreRegisteredIdsButton');
@@ -1161,7 +1170,7 @@
 
                 // Get the table containers
                 const leftTableContainer = document.getElementById('leftTableContainer');
-                const rightTableContainer = document.getElementById('rightTableContainer'); // Corrected line
+                const rightTableContainer = document.getElementById('rightTableContainer');
 
                 // Clear previous content
                 leftTableContainer.innerHTML = '';
