@@ -63,14 +63,32 @@
             font-weight: 500;
             text-align: left;
         }
-        /* New style for highlighted success message */
+        /* New style for the container of the highlighted success message */
         .highlight-success-message {
-            font-size: 3.75rem; /* Increased size - text-6xl for 2-3x of 1.1rem, larger than 2.5rem */
-            font-weight: 700; /* Bold */
-            color: #dc2626; /* red-600 */
             background-color: transparent !important; /* Override default message-box background */
             text-align: center !important; /* Center the message */
             padding: 0 !important; /* Remove padding for a tighter look */
+            display: flex; /* Use flexbox to align content within the message */
+            flex-direction: column; /* Stack text and number vertically */
+            align-items: center; /* Center horizontally */
+            justify-content: center; /* Center vertically if container has height */
+            min-height: 100px; /* Ensure enough height for large number */
+        }
+        /* New style for the text part of the highlighted success message */
+        .queue-text {
+            font-size: 2.5rem; /* Reduced size for the descriptive text (text-4xl equivalent) */
+            font-weight: 700; /* Bold */
+            color: #dc2626; /* red-600 */
+            display: block; /* Ensure it takes full width and number goes below */
+            margin-bottom: 0.5rem; /* Small space between text and number */
+            line-height: 1.2; /* Adjust line height for better spacing */
+        }
+        /* New style for the large queue number itself */
+        .queue-number-display {
+            font-size: 6rem; /* Large size for the number (text-8xl equivalent) */
+            font-weight: 700; /* Bold */
+            color: #dc2626; /* red-600 */
+            line-height: 1; /* Tighter line height for the number */
         }
 
         .error-message {
@@ -767,11 +785,17 @@
 
                 // Check if it's the specific registration success message
                 if (message.startsWith("คุณได้รับคิวหมายเลข:")) {
-                    messageDisplay.textContent = message.replace("คุณได้รับคิวหมายเลข:", "คุณได้รับลำดับผู้เรียนหมายเลข :");
-                    messageDisplay.classList.add('highlight-success-message'); // Apply highlight styles
+                    const queueNumber = message.split(":")[1].trim(); // Extract the number
+                    // Set innerHTML to apply separate styling to the number
+                    messageDisplay.innerHTML = `<span class="queue-text">คุณได้รับลำดับผู้เรียนหมายเลข :</span> <span class="queue-number-display">${queueNumber}</span>`;
+                    messageDisplay.classList.add('highlight-success-message'); // Apply general highlight styles
                 } else {
                     messageDisplay.textContent = message;
                     messageDisplay.classList.remove('highlight-success-message'); // Remove highlight for other messages
+                    // Ensure previous innerHTML structure is removed if not a queue message
+                    if (messageDisplay.querySelector('.queue-text')) {
+                        messageDisplay.innerHTML = message; // Reset to plain text for other messages
+                    }
                 }
             }
         }
