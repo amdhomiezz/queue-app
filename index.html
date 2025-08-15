@@ -594,7 +594,7 @@
             </div>
             <div class="modal-buttons">
                 <button id="deleteSelectedPreRegisteredIdsButton" class="bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg" disabled>ลบรายการที่เลือก</button>
-                <button id="clearAllPreRegisteredIdsButton" class="bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg">ลบรายชื่อทั้งหมด</button>
+                <!-- Removed Clear All Pre-registered IDs button -->
                 <button id="closeViewPreRegModalButton" class="bg-gray-400 hover:bg-gray-500 text-white py-2 px-4 rounded-lg">ปิด</button>
             </div>
         </div>
@@ -708,7 +708,7 @@
         const noPreRegDataMessage = document.getElementById('noReportDataMessage');
         const selectAllPreRegIdsCheckbox = document.getElementById('selectAllPreRegIds');
         const deleteSelectedPreRegisteredIdsButton = document.getElementById('deleteSelectedPreRegisteredIdsButton');
-        const clearAllPreRegisteredIdsButton = document.getElementById('clearAllPreRegisteredIdsButton');
+        // Removed clearAllPreRegisteredIdsButton from here
         const closeViewPreRegModalButton = document.getElementById('closeViewPreRegModalButton');
 
 
@@ -1221,15 +1221,12 @@
 
                 // Get the table containers
                 const leftTableContainer = document.getElementById('leftTableContainer');
-                const rightTableContainer = document.getElementById('leftTableContainer'); // Should be rightTableContainer
-
-                // Corrected line:
-                const rightTableContainerCorrected = document.getElementById('rightTableContainer');
+                const rightTableContainer = document.getElementById('rightTableContainer');
 
 
                 // Clear previous content
                 leftTableContainer.innerHTML = '';
-                rightTableContainerCorrected.innerHTML = '';
+                rightTableContainer.innerHTML = '';
 
 
                 if (currentRegistrationsData.length > 0) {
@@ -1278,7 +1275,7 @@
                         leftTableContainer.innerHTML = leftTableHtml;
                     }
                     if (rightHalf.length > 0) {
-                        rightTableContainerCorrected.innerHTML = rightTableHtml; // Use corrected variable
+                        rightTableContainer.innerHTML = rightTableHtml;
                     }
 
                     noReportDataMessage.classList.add('hidden');
@@ -1521,12 +1518,12 @@
             if (preRegisteredStudentsData.length === 0) {
                 noPreRegDataMessage.classList.remove('hidden');
                 preRegisteredIdsTableContainer.classList.add('hidden'); // Hide table container if no data
-                clearAllPreRegisteredIdsButton.disabled = true; // Disable clear all if no data
+                // Removed clearAllPreRegisteredIdsButton.disabled = true;
                 return;
             } else {
                 noPreRegDataMessage.classList.add('hidden');
                 preRegisteredIdsTableContainer.classList.remove('hidden'); // Show table container
-                clearAllPreRegisteredIdsButton.disabled = false; // Enable clear all if data exists
+                // Removed clearAllPreRegisteredIdsButton.disabled = false;
             }
 
             preRegisteredStudentsData.forEach(id => {
@@ -1759,9 +1756,8 @@
             }
         }
 
-        /**
-         * Clears all pre-registered student IDs from Firestore.
-         */
+        // Removed clearAllPreRegisteredIds function
+        /*
         async function clearAllPreRegisteredIds() {
             try {
                 showLoading(true);
@@ -1789,6 +1785,7 @@
                 showLoading(false);
             }
         }
+        */
 
         /**
          * Updates the state of the "Delete Selected" button based on checkbox selections.
@@ -1950,13 +1947,15 @@
             }
         });
 
-        // Clear All Pre-registered IDs button listener
+        // Removed Clear All Pre-registered IDs button listener
+        /*
         clearAllPreRegisteredIdsButton.addEventListener('click', () => {
             showConfirmationModal("คุณแน่ใจหรือไม่ที่ต้องการลบรายชื่อนักศึกษาที่ลงทะเบียนล่วงหน้าทั้งหมด? การดำเนินการนี้ไม่สามารถย้อนกลับได้", async () => {
                 await clearAllPreRegisteredIds();
                 hideViewPreRegisteredIdsModal(); // Hide modal after clearing
             });
         });
+        */
 
 
         // Initial setup on page load
