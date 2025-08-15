@@ -28,25 +28,37 @@
             width: 100%;
             text-align: center;
         }
-        input, button {
+        input {
             border-radius: 8px;
             padding: 12px 18px;
             font-size: 1rem;
             width: 100%;
             box-sizing: border-box;
             margin-bottom: 15px;
-            /* Default border for clarity */
             border: 2px solid #d1d5db; /* A slightly darker gray for general inputs */
+            height: 48px; /* Fixed height for inputs */
         }
+        /* Custom placeholder color */
+        input::placeholder {
+            color: #9ca3af; /* A lighter grey for placeholders */
+        }
+
         button {
-            background-color: #4CAF50; /* สีเขียว */
+            border-radius: 8px;
+            padding: 12px 18px;
+            font-size: 1rem;
+            width: 100%;
+            box-sizing: border-box;
+            margin-bottom: 15px;
+            /* Default button styles - overridden by specific Tailwind classes on registerButton */
+            background-color: #34d399; /* Softer green (emerald-500) */
             color: white;
             cursor: pointer;
             transition: background-color 0.3s ease;
             font-weight: 600;
         }
         button:hover {
-            background-color: #45a049;
+            background-color: #10b981; /* Darker emerald on hover (emerald-600) */
         }
         /* เพิ่มสไตล์สำหรับปุ่มที่ถูกปิดใช้งาน */
         button:disabled {
@@ -471,26 +483,26 @@
 <body>
     <div class="container">
         <!-- New Headline -->
-        <p class="text-xl font-semibold text-gray-700 mb-2">CA033 : Idea Generation Workshop and Agile Management</p>
-        <h1 class="text-3xl font-bold text-gray-800 mb-6">ระบบเช็คชื่อ และ รับหมายเลขผู้เรียน</h1>
-        <p class="text-xl font-bold text-gray-600 mb-6">กรอกรหัสนักศึกษา และตอบคำถามประจำวัน</p>
-        <p class="text-gray-600 mb-6">เพื่อรับหมายเลขประจำตัวผู้เรียนประจำวันนี้ เพื่อใช้ในการทำ Workshop</p>
+        <p class="text-2xl font-bold text-gray-700 mb-2">CA033 : Idea Generation Workshop and Agile Management</p>
+        <h1 class="text-4xl font-extrabold text-gray-800 mb-6">ระบบเช็คชื่อ และ รับหมายเลขผู้เรียน</h1>
+        <p class="text-xl font-bold text-gray-600 mb-2">กรอกรหัสนักศึกษา และตอบคำถามประจำวัน</p>
+        <p class="text-gray-600 mb-6 text-sm">เพื่อรับหมายเลขประจำตัวผู้เรียนประจำวันนี้ เพื่อใช้ในการทำ Workshop</p>
 
         <!-- Input fields section: student ID and daily answer -->
         <div class="mb-4 flex flex-wrap -mx-2 items-end">
             <!-- Student ID input (left column) -->
             <div class="w-full md:w-1/2 px-2 mb-4 md:mb-0"> <!-- Added mb-4 for vertical spacing -->
-                <label for="studentIdInput" class="block text-gray-700 text-base font-bold mb-2">รหัสนักศึกษา:</label>
-                <input type="text" id="studentIdInput" placeholder="กรอกรหัสนักศึกษาของคุณ เช่น 1660312345" class="focus:ring-2 focus:ring-green-300 focus:border-green-500 border-2 border-gray-400">
+                <label for="studentIdInput" class="block text-blue-700 text-lg font-bold mb-2">รหัสนักศึกษา:</label>
+                <input type="text" id="studentIdInput" placeholder="กรอกรหัสนักศึกษาของคุณ เช่น 1660312345" class="focus:ring-2 focus:ring-green-300 focus:border-green-500 border-2 border-gray-400 placeholder-gray-400">
             </div>
             <!-- Daily Question/Answer input (right column) -->
             <div class="w-full md:w-1/2 px-2">
-                <label for="dailyAnswerInput" class="block text-gray-700 text-base font-bold mb-2">คำถามประจำวันนี้?:</label>
-                <input type="text" id="dailyAnswerInput" placeholder="กรอกคำตอบของคุณ" class="focus:ring-2 focus:ring-green-300 focus:border-green-500 border-2 border-gray-400">
+                <label for="dailyAnswerInput" class="block text-blue-700 text-lg font-bold mb-2">คำถามประจำวันนี้?:</label>
+                <input type="text" id="dailyAnswerInput" placeholder="กรอกคำตอบของคุณ" class="focus:ring-2 focus:ring-green-300 focus:border-green-500 border-2 border-gray-400 placeholder-gray-400">
             </div>
         </div>
 
-        <button id="registerButton" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1 md:py-2 md:px-4 md:text-base" disabled>
+        <button id="registerButton" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1 md:py-2 md:px-4 md:text-base" disabled>
             ลงทะเบียนรับหมายเลขผู้เรียนประจำวัน
         </button>
 
@@ -1209,11 +1221,15 @@
 
                 // Get the table containers
                 const leftTableContainer = document.getElementById('leftTableContainer');
-                const rightTableContainer = document.getElementById('rightTableContainer');
+                const rightTableContainer = document.getElementById('leftTableContainer'); // Should be rightTableContainer
+
+                // Corrected line:
+                const rightTableContainerCorrected = document.getElementById('rightTableContainer');
+
 
                 // Clear previous content
                 leftTableContainer.innerHTML = '';
-                rightTableContainer.innerHTML = '';
+                rightTableContainerCorrected.innerHTML = '';
 
 
                 if (currentRegistrationsData.length > 0) {
@@ -1262,7 +1278,7 @@
                         leftTableContainer.innerHTML = leftTableHtml;
                     }
                     if (rightHalf.length > 0) {
-                        rightTableContainer.innerHTML = rightTableHtml;
+                        rightTableContainerCorrected.innerHTML = rightTableHtml; // Use corrected variable
                     }
 
                     noReportDataMessage.classList.add('hidden');
