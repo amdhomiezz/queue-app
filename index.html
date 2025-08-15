@@ -669,8 +669,7 @@
         // Import Firebase modules
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, query, where, addDoc, serverTimestamp, getDocs, deleteDoc, writeBatch, runTransaction, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js";
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, query, where, addDoc, serverTimestamp, getDocs, deleteDoc, writeBatch, runTransaction, updateDoc, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"; // Added orderBy
 
 
         // Firebase configuration (from your Firebase project)
@@ -680,7 +679,7 @@
             apiKey: "AIzaSyA7OgbR00tGMjrQXAOtLUX34y8sXulK-5s", // <-- REPLACE THIS WITH YOUR API KEY
             authDomain: "queue-app-72e53.firebaseapp.com",
             projectId: "queue-app-72e53",
-            storageBucket: "queue-app-72e53.firebasestorage.app",
+            storageBucket: "queue-app-72e53.firebaseastorage.app",
             messagingSenderId: "457625398149",
             appId: "1:457625398149:web:2752c4993e1ced324172ec",
             measurementId: "G-BHFP0TNYY3"
@@ -691,7 +690,8 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const auth = getAuth(app);
-        const analytics = getAnalytics(app); // If you don't need Analytics, you can remove this line
+        // const analytics = getAnalytics(app); // If you don't need Analytics, you can remove this line
+
 
         // UI elements
         const studentIdInput = document.getElementById('studentIdInput');
@@ -731,7 +731,7 @@
         const totalPreRegisteredStudentsSpan = document.getElementById('totalPreRegisteredStudents');
         const preRegisteredIdsTable = document.getElementById('preRegisteredIdsTable');
         const preRegisteredIdsTableBody = preRegisteredIdsTable.querySelector('tbody');
-        const noPreRegDataMessage = document.getElementById('noReportDataMessage');
+        const noPreRegDataMessageInModal = document.getElementById('noPreRegDataMessage'); // Corrected ID reference
         const selectAllPreRegIdsCheckbox = document.getElementById('selectAllPreRegIds');
         const deleteSelectedPreRegisteredIdsButton = document.getElementById('deleteSelectedPreRegisteredIdsButton');
         // Removed clearAllPreRegisteredIdsButton from here
@@ -1347,7 +1347,8 @@
                 dailyAnswerInput.value = ''; // Clear daily answer input
                 fetchRegistrationReport(currentActiveSessionId); // Fetch report for current session
 
-            } catch (e) {
+            }
+            catch (e) {
                 console.error("Error in transaction or registration:", e);
                 // Handle specific errors thrown from within the transaction
                 if (e.message.includes("คุณยังไม่มีรายชื่ออยู่ในระบบเช็คชื่อ") ||
@@ -1734,14 +1735,12 @@
             totalPreRegisteredStudentsSpan.textContent = preRegisteredStudentsData.length;
 
             if (preRegisteredStudentsData.length === 0) {
-                noPreRegDataMessage.classList.remove('hidden');
+                noPreRegDataMessageInModal.classList.remove('hidden'); // Use the correct element
                 preRegisteredIdsTableContainer.classList.add('hidden'); // Hide table container if no data
-                // Removed clearAllPreRegisteredIdsButton.disabled = true;
                 return;
             } else {
-                noPreRegDataMessage.classList.add('hidden');
+                noPreRegDataMessageInModal.classList.add('hidden'); // Use the correct element
                 preRegisteredIdsTableContainer.classList.remove('hidden'); // Show table container
-                // Removed clearAllPreRegisteredIdsButton.disabled = false;
             }
 
             preRegisteredStudentsData.forEach(id => {
@@ -1972,6 +1971,28 @@
             } finally {
                 showLoading(false);
             }
+        }
+
+        /**
+         * Updates the state of the "Delete Selected" button based on checkbox selections.
+         */
+        function updateDeleteSelectedButtonState() {
+            selectedPreRegIdsForDeletion.clear(); // Clear previous selections
+
+            // Get all checkboxes in the pre-registered IDs table (excluding the "select all" checkbox)
+            const checkboxes = preRegisteredIdsTableBody.querySelectorAll('.pre-reg-checkbox');
+
+            checkboxes.forEach(checkbox => {
+                if (checkbox.checked) {
+                    selectedPreRegIdsForDeletion.add(checkbox.dataset.studentId);
+                }
+            });
+
+            // Enable or disable the delete button based on whether any checkboxes are selected
+            deleteSelectedPreRegisteredIdsButton.disabled = selectedPreRegIdsForDeletion.size === 0;
+
+            // Update the "select all" checkbox state
+            selectAllPreRegIdsCheckbox.checked = selectedPreRegIdsForDeletion.size === checkboxes.length && checkboxes.length > 0;
         }
 
         /**
