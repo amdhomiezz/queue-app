@@ -478,25 +478,6 @@
         #confirmationModal {
             z-index: 2000;
         }
-        .admin-dropdown-container {
-            margin-top: 20px;
-            text-align: left;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        .admin-dropdown-container label {
-            font-size: 0.9rem;
-            font-weight: 600;
-            color: #4a5568;
-        }
-        .admin-dropdown-container select {
-            padding: 8px 12px;
-            border-radius: 8px;
-            border: 1px solid #d1d5db;
-            font-size: 0.9rem;
-            flex-grow: 1; /* Allow select to take available space */
-        }
     </style>
 </head>
 <body>
@@ -538,11 +519,6 @@
         <!-- ส่วนสำหรับรายงานการลงทะเบียน -->
         <div class="report-section">
             <h2 class="text-xl font-bold text-gray-800 mb-4">ลำดับหมายเลขผู้เรียนประจำวัน</h2>
-            <!-- Admin Session Dropdown -->
-            <div id="adminSessionDropdownContainer" class="admin-dropdown-container hidden">
-                <label for="sessionSelect">เลือก Session:</label>
-                <select id="sessionSelect"></select>
-            </div>
             <div id="reportLoadingIndicator" class="report-loading-indicator">
                 กำลังโหลดรายงาน...
             </div>
@@ -636,10 +612,10 @@
     <div id="adminLoginStatusMessage" class="hidden"></div>
 
 
-    <!-- Floating Export Button (File Alt Icon) -->
+    <!-- Floating Export Button (Save Icon) -->
     <div id="fixedExportButtonContainer">
         <button id="toggleExportReportButton" class="floating-icon-button">
-            <i class="fas fa-file-alt"></i> <!-- Icon for file alt (document) -->
+            <i class="fas fa-save"></i> <!-- Icon for save -->
         </button>
     </div>
 
@@ -669,7 +645,8 @@
         // Import Firebase modules
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, query, where, addDoc, serverTimestamp, getDocs, deleteDoc, writeBatch, runTransaction, updateDoc, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"; // Added orderBy
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, query, where, addDoc, serverTimestamp, getDocs, deleteDoc, writeBatch, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js";
 
 
         // Firebase configuration (from your Firebase project)
@@ -679,7 +656,7 @@
             apiKey: "AIzaSyA7OgbR00tGMjrQXAOtLUX34y8sXulK-5s", // <-- REPLACE THIS WITH YOUR API KEY
             authDomain: "queue-app-72e53.firebaseapp.com",
             projectId: "queue-app-72e53",
-            storageBucket: "queue-app-72e53.firebaseastorage.app",
+            storageBucket: "queue-app-72e53.firebasestorage.app",
             messagingSenderId: "457625398149",
             appId: "1:457625398149:web:2752c4993e1ced324172ec",
             measurementId: "G-BHFP0TNYY3"
@@ -690,8 +667,7 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const auth = getAuth(app);
-        // const analytics = getAnalytics(app); // If you don't need Analytics, you can remove this line
-
+        const analytics = getAnalytics(app); // If you don't need Analytics, you can remove this line
 
         // UI elements
         const studentIdInput = document.getElementById('studentIdInput');
@@ -715,8 +691,6 @@
         const passwordErrorDisplay = document.getElementById('passwordErrorDisplay');
         const resetQueueButton = document.getElementById('resetQueueButton');
         const adminLoginStatusMessage = document.getElementById('adminLoginStatusMessage'); // New element
-        const adminSessionDropdownContainer = document.getElementById('adminSessionDropdownContainer'); // New container for dropdown
-        const sessionSelect = document.getElementById('sessionSelect'); // New dropdown element
 
         // Import Modal elements
         const importStudentIdsModal = document.getElementById('importStudentIdsModal');
@@ -731,7 +705,7 @@
         const totalPreRegisteredStudentsSpan = document.getElementById('totalPreRegisteredStudents');
         const preRegisteredIdsTable = document.getElementById('preRegisteredIdsTable');
         const preRegisteredIdsTableBody = preRegisteredIdsTable.querySelector('tbody');
-        const noPreRegDataMessageInModal = document.getElementById('noPreRegDataMessage'); // Corrected ID reference
+        const noPreRegDataMessage = document.getElementById('noReportDataMessage');
         const selectAllPreRegIdsCheckbox = document.getElementById('selectAllPreRegIds');
         const deleteSelectedPreRegisteredIdsButton = document.getElementById('deleteSelectedPreRegisteredIdsButton');
         // Removed clearAllPreRegisteredIdsButton from here
@@ -754,8 +728,7 @@
         let currentRegistrationsData = []; // To store fetched report data for export
         let preRegisteredStudentsData = []; // To store fetched pre-registered student IDs for view/manage
         let selectedPreRegIdsForDeletion = new Set(); // To store selected IDs for multi-delete
-        let currentActiveSessionId = null; // Stores the ID of the current active session
-        let currentActiveSessionDetails = null; // Stores details of the current active session
+
 
         // --- Firebase Authentication ---
         onAuthStateChanged(auth, async (user) => {
@@ -807,48 +780,6 @@
             const month = String(today.getMonth() + 1).padStart(2, '0');
             const day = String(today.getDate()).padStart(2, '0');
             return `${year}-${month}-${day}`;
-        }
-
-        /**
-         * Generates a unique session ID based on current timestamp.
-         * @returns {string} A unique session ID string.
-         */
-        function generateSessionId() {
-            return new Date().toISOString().replace(/[:.-]/g, ''); // Format: YYYY-MM-DDTHHMMSSsssZ
-        }
-
-        /**
-         * Formats a session ID (timestamp string) into a human-readable date and time.
-         * @param {string} sessionId The session ID string.
-         * @returns {string} Formatted date and time string.
-         */
-        function formatSessionIdToDateTime(sessionId) {
-            try {
-                // Assuming sessionId is ISO string compatible (e.g., YYYY-MM-DDTHH:MM:SS.sssZ)
-                const date = new Date(sessionId.replace(/(\d{4}-\d{2}-\d{2})T(\d{2})(\d{2})(\d{2})(\d{3})Z/, '$1T$2:$3:$4.$5Z'));
-                if (isNaN(date.getTime())) { // Check for invalid date
-                    // If not an ISO string, it might be a custom ID like YYYYMMDDHHMMSSsss
-                    const year = sessionId.substring(0, 4);
-                    const month = sessionId.substring(4, 6);
-                    const day = sessionId.substring(6, 8);
-                    const hour = sessionId.substring(9, 11);
-                    const minute = sessionId.substring(11, 13);
-                    const second = sessionId.substring(13, 15);
-                    return `${day}/${month}/${year} ${hour}:${minute}:${second} (Custom)`;
-                }
-                return date.toLocaleString('th-TH', {
-                    year: 'numeric',
-                    month: '2-digit',
-                    day: '2-digit',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit',
-                    hour12: false // Use 24-hour format
-                });
-            } catch (e) {
-                console.error("Error formatting session ID:", e);
-                return sessionId; // Return original if formatting fails
-            }
         }
 
         /**
@@ -1046,119 +977,9 @@
             document.getElementById('fixedImportButtonContainer').style.display = show ? 'flex' : 'none';
             document.getElementById('fixedViewPreRegButtonContainer').style.display = show ? 'flex' : 'none'; // New button
             document.getElementById('fixedResetButtonContainer').style.display = show ? 'flex' : 'none';
-            adminSessionDropdownContainer.classList.toggle('hidden', !show); // Toggle dropdown visibility
-            if (show) {
-                fetchAndPopulateSessionsDropdown(); // Populate dropdown when shown
-            }
         }
 
         // --- Firestore Data Operations ---
-
-        /**
-         * Initializes or updates the current active session.
-         * This runs on initial load and whenever needed to ensure a current session exists.
-         */
-        async function initializeCurrentSession() {
-            if (!authReady) {
-                console.warn("Authentication not ready for session initialization.");
-                return;
-            }
-
-            const queueMetadataRef = doc(db, `artifacts/${appId}/public/data/queueMetadata`, 'currentQueue');
-
-            try {
-                await runTransaction(db, async (transaction) => {
-                    const queueMetadataDoc = await transaction.get(queueMetadataRef);
-                    const currentDate = getCurrentDate();
-                    let needsNewSession = false;
-                    let oldSessionId = null;
-                    let oldHighestQueueNumber = 0;
-
-                    if (queueMetadataDoc.exists()) {
-                        const data = queueMetadataDoc.data();
-                        currentActiveSessionDetails = data;
-                        currentActiveSessionId = data.currentSessionId;
-
-                        // Check if it's a new day or no session ID, or if the session is somehow invalid
-                        if (!data.currentSessionId || data.currentDate !== currentDate) {
-                            needsNewSession = true;
-                            oldSessionId = data.currentSessionId;
-                            oldHighestQueueNumber = data.highestQueueNumber || 0;
-                        } else {
-                            // Session is valid and for today, just update display
-                            highestQueueNumberDisplay.textContent = data.highestQueueNumber || 0;
-                            // Also update the dropdown to show the current session if it's visible
-                            if (isAdminLoggedIn) {
-                                fetchAndPopulateSessionsDropdown(currentActiveSessionId);
-                            }
-                        }
-                    } else {
-                        // Document doesn't exist, create initial session
-                        needsNewSession = true;
-                    }
-
-                    if (needsNewSession) {
-                        const newSessionId = generateSessionId();
-                        const newSessionStartTime = serverTimestamp();
-
-                        // If there was an old session, mark it as completed
-                        if (oldSessionId) {
-                            const oldSessionRef = doc(db, `artifacts/${appId}/public/data/sessions`, oldSessionId);
-                            // Get the final count from old session registrations
-                            const oldSessionRegistrationsQuery = query(
-                                collection(db, `artifacts/${appId}/public/data/queueRegistrations`),
-                                where("sessionId", "==", oldSessionId)
-                            );
-                            const oldSessionSnapshot = await getDocs(oldSessionRegistrationsQuery); // This is a read outside the current transaction, but fine for final count
-                            const finalCount = oldSessionSnapshot.size;
-
-                            transaction.update(oldSessionRef, {
-                                endTime: serverTimestamp(),
-                                finalHighestQueueNumber: finalCount,
-                                status: "completed"
-                            });
-                        }
-
-                        // Update currentQueue to the new session
-                        transaction.set(queueMetadataRef, {
-                            highestQueueNumber: 0,
-                            currentDate: currentDate,
-                            currentSessionId: newSessionId,
-                            sessionStartTime: newSessionStartTime,
-                            lastUpdateTimestamp: serverTimestamp()
-                        });
-
-                        // Create a new session document
-                        const newSessionRef = doc(db, `artifacts/${appId}/public/data/sessions`, newSessionId);
-                        transaction.set(newSessionRef, {
-                            sessionId: newSessionId,
-                            startDate: currentDate,
-                            startTime: newSessionStartTime,
-                            status: "active",
-                            createdByUser: currentUserId
-                        });
-
-                        currentActiveSessionId = newSessionId;
-                        currentActiveSessionDetails = {
-                            highestQueueNumber: 0,
-                            currentDate: currentDate,
-                            currentSessionId: newSessionId,
-                            sessionStartTime: newSessionStartTime
-                        };
-                        highestQueueNumberDisplay.textContent = 0;
-                        showMessage("เริ่มต้น Session ใหม่แล้ว");
-
-                        // After transaction, if admin is logged in, refresh dropdown
-                        if (isAdminLoggedIn) {
-                            fetchAndPopulateSessionsDropdown(currentActiveSessionId);
-                        }
-                    }
-                });
-            } catch (e) {
-                console.error("Error initializing/updating current session:", e);
-                showError("เกิดข้อผิดพลาดในการเริ่มต้น Session โปรดลองรีเฟรชหน้า");
-            }
-        }
 
         /**
          * Sets up a real-time listener for current queue metadata.
@@ -1174,17 +995,13 @@
                 if (docSnap.exists()) {
                     const data = docSnap.data();
                     highestQueueNumberDisplay.textContent = data.highestQueueNumber || 0;
-                    currentActiveSessionId = data.currentSessionId;
-                    currentActiveSessionDetails = data; // Keep details updated
-                    // Also check if current day is different from stored data's date
-                    // If so, trigger a new session initialization on the next user action
-                    if (data.currentDate !== getCurrentDate()) {
-                        console.log("New day detected, session will reset on next registration/admin action.");
-                        // To avoid immediate transaction conflict, we'll let registerQueue or resetQueue handle this
-                    }
                 } else {
-                    // Document doesn't exist, try to initialize it
-                    initializeCurrentSession();
+                    highestQueueNumberDisplay.textContent = 0; // No data yet
+                    // Initialize data if not present
+                    setDoc(queueMetadataRef, {
+                        highestQueueNumber: 0,
+                        lastResetDate: getCurrentDate()
+                    }, { merge: true }).catch(e => console.error("Error initializing queue metadata:", e));
                 }
             }, (error) => {
                 console.error("Error listening to queue metadata:", error);
@@ -1253,24 +1070,18 @@
                 return;
             }
 
-            // Ensure current session is initialized before proceeding
-            if (!currentActiveSessionId || currentActiveSessionDetails.currentDate !== getCurrentDate()) {
-                await initializeCurrentSession(); // Re-initialize session if day changed or not set
-            }
-
             // Get geolocation data before the transaction, as it's a client-side call
             const geo = await getGeolocation();
             const latitude = geo ? geo.latitude : 'N/A';
             const longitude = geo ? geo.longitude : 'N/A';
 
             const deviceId = getDeviceId();
-            const currentDate = getCurrentDate(); // Get current date again after potential session init
-            const currentSession = currentActiveSessionId; // Use the most up-to-date session ID
+            const currentDate = getCurrentDate();
 
-            // Check localStorage for prior registration in THIS session on this device
-            const lastRegistrationSession = localStorage.getItem(`lastRegistrationSessionId_${appId}_${deviceId}`);
-            if (lastRegistrationSession === currentSession) {
-                showError("คุณได้ลงทะเบียนผู้เรียนไปแล้วสำหรับ Session นี้ บนอุปกรณ์นี้");
+            // Check localStorage for prior registration today on this device
+            const lastRegistrationDate = localStorage.getItem(`lastRegistrationDate_${appId}_${deviceId}`);
+            if (lastRegistrationDate === currentDate) {
+                showError("คุณได้ลงทะเบียนผู้เรียนไปแล้วสำหรับวันนี้ บนอุปกรณ์นี้");
                 showLoading(false);
                 return;
             }
@@ -1278,25 +1089,29 @@
             try {
                 // Use a transaction to ensure atomic increment of queue number and registration
                 const newQueueNumber = await runTransaction(db, async (transaction) => {
-                    // Re-check currentQueue status within the transaction to handle concurrent resets/new days
-                    const queueMetadataRef = doc(db, `artifacts/${appId}/public/data/queueMetadata`, 'currentQueue');
-                    const queueMetadataDoc = await transaction.get(queueMetadataRef);
-
-                    if (!queueMetadataDoc.exists() || queueMetadataDoc.data().currentSessionId !== currentSession) {
-                        // This indicates the session was reset or a new day started between the initial check and now
-                        // Instruct user to try again or re-initiate session
-                        throw new Error("Session มีการเปลี่ยนแปลง กรุณาลองใหม่อีกครั้ง");
-                    }
-
-                    const data = queueMetadataDoc.data();
-                    let currentHighestQueueNumber = data.highestQueueNumber || 0;
-
                     // Check if student ID is pre-registered
                     const preRegDocRef = doc(db, `artifacts/${appId}/public/data/preRegisteredStudentIds`, studentId);
                     const preRegDocSnap = await transaction.get(preRegDocRef); // Use transaction.get
 
                     if (!preRegDocSnap.exists()) {
                         throw new Error("คุณยังไม่มีรายชื่ออยู่ในระบบเช็คชื่อ กรุณาแจ้งอาจารย์ผู้สอน");
+                    }
+
+                    const queueMetadataRef = doc(db, `artifacts/${appId}/public/data/queueMetadata`, 'currentQueue');
+                    const queueMetadataDoc = await transaction.get(queueMetadataRef);
+
+                    let currentHighestQueueNumber = 0;
+                    let lastResetDateInDb = null;
+
+                    if (queueMetadataDoc.exists()) {
+                        const data = queueMetadataDoc.data();
+                        currentHighestQueueNumber = data.highestQueueNumber || 0;
+                        lastResetDateInDb = data.lastResetDate;
+                    }
+
+                    // Reset if it's a new day
+                    if (lastResetDateInDb !== currentDate) {
+                        currentHighestQueueNumber = 0;
                     }
 
                     const nextQueueNumber = currentHighestQueueNumber + 1;
@@ -1306,30 +1121,37 @@
                         throw new Error("คิวเต็มแล้วสำหรับวันนี้"); // Changed error message slightly
                     }
 
-                    // Check if student ID has already registered for THIS session in Firestore (within transaction)
+                    // Check if student ID has already registered for today in Firestore (within transaction)
                     const q = query(
                         collection(db, `artifacts/${appId}/public/data/queueRegistrations`),
                         where("studentId", "==", studentId),
-                        where("sessionId", "==", currentSession) // Now check by session ID
+                        where("registrationDate", "==", currentDate)
                     );
+                    // Firestore transactions only allow reading documents that are explicitly part of the transaction,
+                    // or are read before any writes. For a query, using transaction.get on each doc in the query
+                    // result would be ideal, but getDocs directly on a query inside a transaction can lead to issues.
+                    // The safer approach for this type of check is often to try to create a document with a
+                    // unique ID (e.g., studentId-date) and use setDoc with { merge: false } or { exists: false }
+                    // for atomic creation. However, given the current structure, let's keep it as a read for now,
+                    // acknowledging the trade-off.
                     const querySnapshot = await getDocs(q); // This is a read operation
                     if (!querySnapshot.empty) {
-                        throw new Error("รหัสนักศึกษานี้ได้ลงทะเบียนคิวไปแล้วสำหรับ Session นี้");
+                        // If a duplicate is found, throw an error to abort the transaction.
+                        throw new Error("รหัสนักศึกษานี้ได้ลงทะเบียนคิวไปแล้วสำหรับวันนี้");
                     }
 
                     // Update highestQueueNumber in metadata within the transaction
-                    transaction.update(queueMetadataRef, {
+                    transaction.set(queueMetadataRef, {
                         highestQueueNumber: nextQueueNumber,
-                        lastUpdateTimestamp: serverTimestamp() // Update timestamp on every registration
-                    });
+                        lastResetDate: currentDate
+                    }, { merge: true });
 
                     // Add the new registration record within the transaction
                     const newRegistrationDocRef = doc(collection(db, `artifacts/${appId}/public/data/queueRegistrations`)); // Creates a new document reference with auto-ID
                     transaction.set(newRegistrationDocRef, {
                         studentId: studentId,
                         queueNumber: nextQueueNumber,
-                        registrationDate: currentDate, // Still useful for general date queries
-                        sessionId: currentSession, // Add session ID here
+                        registrationDate: currentDate,
                         dailyAnswer: dailyAnswer, // Include the daily answer
                         deviceId: deviceId,
                         timestamp: serverTimestamp(),
@@ -1341,22 +1163,23 @@
                 });
 
                 // If we reach here, the transaction was successful and newQueueNumber is valid
-                localStorage.setItem(`lastRegistrationSessionId_${appId}_${deviceId}`, currentSession);
+                localStorage.setItem(`lastRegistrationDate_${appId}_${deviceId}`, currentDate);
                 showMessage(`คุณได้รับคิวหมายเลข: ${newQueueNumber}`);
                 studentIdInput.value = '';
                 dailyAnswerInput.value = ''; // Clear daily answer input
-                fetchRegistrationReport(currentActiveSessionId); // Fetch report for current session
+                fetchRegistrationReport();
 
-            }
-            catch (e) {
+            } catch (e) {
                 console.error("Error in transaction or registration:", e);
                 // Handle specific errors thrown from within the transaction
-                if (e.message.includes("คุณยังไม่มีรายชื่ออยู่ในระบบเช็คชื่อ") ||
-                    e.message.includes("คิวเต็มแล้วสำหรับวันนี้") ||
-                    e.message.includes("รหัสนักศึกษานี้ได้ลงทะเบียนคิวไปแล้วสำหรับ Session นี้") ||
-                    e.message.includes("Session มีการเปลี่ยนแปลง")) {
+                if (e.message === "คุณยังไม่มีรายชื่ออยู่ในระบบเช็คชื่อ กรุณาแจ้งอาจารย์ผู้สอน" ||
+                    e.message === "คิวเต็มแล้วสำหรับวันนี้" ||
+                    e.message === "รหัสนักศึกษานี้ได้ลงทะเบียนคิวไปแล้วสำหรับวันนี้") {
                     showError(e.message);
                 } else if (e.code === 'ABORTED') {
+                    // This often means a transaction retry failed due to contention, or a custom error was thrown
+                    // If it's a custom error, we've already caught it by its message above.
+                    // If not, it's generic contention.
                     showError("เกิดข้อผิดพลาดในการลงทะเบียนคิว: มีผู้ใช้ลงทะเบียนพร้อมกัน กรุณาลองอีกครั้ง");
                 }
                 else {
@@ -1368,10 +1191,9 @@
         }
 
         /**
-         * Fetches and displays the registration report for a specific session or the current one.
-         * @param {string} [sessionIdToFetch=currentActiveSessionId] Optional session ID to fetch. Defaults to current active session.
+         * Fetches and displays the registration report for the current day.
          */
-        async function fetchRegistrationReport(sessionIdToFetch = currentActiveSessionId) {
+        async function fetchRegistrationReport() {
             if (!authReady) {
                 console.warn("Authentication not ready for report fetch.");
                 showError("ระบบยังไม่พร้อม โปรดรอสักครู่และลองอีกครั้ง");
@@ -1381,22 +1203,11 @@
             showReportLoading(true);
             noReportDataMessage.classList.add('hidden');
 
-            if (!sessionIdToFetch) {
-                // If no session ID is provided and no current active session is set yet
-                // This might happen on initial load before metadata is fetched
-                await initializeCurrentSession();
-                sessionIdToFetch = currentActiveSessionId; // Retry with initialized session ID
-                if (!sessionIdToFetch) {
-                    showError("ไม่สามารถระบุ Session ปัจจุบันได้");
-                    showReportLoading(false);
-                    return;
-                }
-            }
-
+            const currentDate = getCurrentDate();
             try {
                 const q = query(
                     collection(db, `artifacts/${appId}/public/data/queueRegistrations`),
-                    where("sessionId", "==", sessionIdToFetch)
+                    where("registrationDate", "==", currentDate)
                 );
                 const querySnapshot = await getDocs(q);
 
@@ -1411,6 +1222,7 @@
                 // Get the table containers
                 const leftTableContainer = document.getElementById('leftTableContainer');
                 const rightTableContainer = document.getElementById('rightTableContainer');
+
 
                 // Clear previous content
                 leftTableContainer.innerHTML = '';
@@ -1488,7 +1300,7 @@
             }
 
             // Updated headers for CSV
-            const headers = ["ลำดับ", "รหัสนักศึกษา", "คำตอบประจำวัน", "เวลาลงทะเบียน", "ละติจูด", "ลองจิจูด", "Session ID"];
+            const headers = ["ลำดับ", "รหัสนักศึกษา", "คำตอบประจำวัน", "เวลาลงทะเบียน", "ละติจูด", "ลองจิจูด"];
             // Escape values that might contain commas or newlines
             const escapeCsv = (value) => {
                 if (value === null || value === undefined) return '';
@@ -1512,8 +1324,7 @@
                     escapeCsv(reg.dailyAnswer || 'N/A'), // Include daily answer in CSV
                     escapeCsv(registrationDateTime),
                     escapeCsv(latitude),
-                    escapeCsv(longitude),
-                    escapeCsv(reg.sessionId || 'N/A') // Include Session ID in CSV
+                    escapeCsv(longitude)
                 ].join(',');
             });
 
@@ -1523,7 +1334,7 @@
 
             const a = document.createElement('a');
             a.href = url;
-            a.download = `รายงานลำดับผู้เรียน_Session_${sessionSelect.value || 'Current'}_${getCurrentDate()}.csv`; // Include session ID in filename
+            a.download = `รายงานลำดับผู้เรียน_${getCurrentDate()}.csv`;
             document.body.appendChild(a); // Append to body to make it clickable in some browsers
             a.click();
             document.body.removeChild(a); // Clean up
@@ -1535,91 +1346,61 @@
 
 
         /**
-         * Resets the current session and starts a new one.
-         * This no longer deletes previous registration data.
+         * Resets all queues for the current day by deleting all registration documents
+         * and resetting the highest queue number.
+         * IMPORTANT: For a production app, this operation should be protected by
+         * a robust server-side authentication and authorization mechanism, not just a client-side password.
          */
-        async function resetQueueAndStartNewSession() {
+        async function resetAllQueuesToday() {
             if (!authReady) {
                 showError("ระบบยังไม่พร้อม โปรดรอสักครู่และลองอีกครั้ง");
-                return;
-            }
-            if (!currentActiveSessionId) {
-                showError("ไม่สามารถรีเซ็ตได้ ไม่มี Session ปัจจุบัน");
                 return;
             }
 
             showLoading(true);
             hideMessages();
 
+            const currentDate = getCurrentDate();
             try {
-                await runTransaction(db, async (transaction) => {
-                    const queueMetadataRef = doc(db, `artifacts/${appId}/public/data/queueMetadata`, 'currentQueue');
-                    const queueMetadataDoc = await transaction.get(queueMetadataRef);
+                // 1. Get all registrations for today
+                const q = query(
+                    collection(db, `artifacts/${appId}/public/data/queueRegistrations`),
+                    where("registrationDate", "==", currentDate)
+                );
+                const querySnapshot = await getDocs(q);
 
-                    if (!queueMetadataDoc.exists() || queueMetadataDoc.data().currentSessionId !== currentActiveSessionId) {
-                        throw new Error("Session มีการเปลี่ยนแปลง กรุณาลองใหม่อีกครั้ง");
-                    }
+                if (querySnapshot.empty) {
+                    showMessage("ไม่มีข้อมูลคิวให้รีเซ็ตสำหรับวันนี้");
+                    showLoading(false);
+                    fetchRegistrationReport(); // Refresh report even if empty
+                    return;
+                }
 
-                    const oldSessionId = currentActiveSessionId;
-                    const oldHighestQueueNumber = queueMetadataDoc.data().highestQueueNumber || 0;
-
-                    // 1. Mark the old session as completed in the sessions collection
-                    const oldSessionRef = doc(db, `artifacts/${appId}/public/data/sessions`, oldSessionId);
-                    transaction.update(oldSessionRef, {
-                        endTime: serverTimestamp(),
-                        finalHighestQueueNumber: oldHighestQueueNumber, // Final count for old session
-                        status: "completed"
-                    });
-
-                    // 2. Generate a new session ID and timestamp
-                    const newSessionId = generateSessionId();
-                    const newSessionStartTime = serverTimestamp();
-                    const currentDate = getCurrentDate(); // Ensure date is current
-
-                    // 3. Update the currentQueue metadata to reflect the new session
-                    transaction.set(queueMetadataRef, {
-                        highestQueueNumber: 0,
-                        currentDate: currentDate,
-                        currentSessionId: newSessionId,
-                        sessionStartTime: newSessionStartTime,
-                        lastUpdateTimestamp: serverTimestamp()
-                    });
-
-                    // 4. Create a new document for the new session in the sessions collection
-                    const newSessionRef = doc(db, `artifacts/${appId}/public/data/sessions`, newSessionId);
-                    transaction.set(newSessionRef, {
-                        sessionId: newSessionId,
-                        startDate: currentDate,
-                        startTime: newSessionStartTime,
-                        status: "active",
-                        createdByUser: currentUserId // Record who created this session
-                    });
+                // 2. Delete all documents in a batch for efficiency
+                const batch = writeBatch(db);
+                querySnapshot.forEach((docSnap) => {
+                    batch.delete(docSnap.ref);
                 });
+                await batch.commit();
 
-                // Update local state after successful transaction
-                currentActiveSessionId = currentActiveSessionDetails.currentSessionId = generateSessionId(); // This will be the NEW session ID from the transaction
-                highestQueueNumberDisplay.textContent = 0; // Reset display
-                showMessage("รีเซ็ตคิวและเริ่มต้น Session ใหม่สำเร็จแล้ว");
-                fetchRegistrationReport(); // Fetch report for the new, empty session
-                // Re-populate dropdown to show the new session as current
-                if (isAdminLoggedIn) {
-                    await fetchAndPopulateSessionsDropdown(currentActiveSessionId);
-                    sessionSelect.value = currentActiveSessionId; // Select the new session
-                }
+                // 3. Reset highest queue number in metadata
+                const queueMetadataRef = doc(db, `artifacts/${appId}/public/data/queueMetadata`, 'currentQueue');
+                await setDoc(queueMetadataRef, {
+                    highestQueueNumber: 0,
+                    lastResetDate: currentDate // Update reset date to confirm it was reset today
+                }, { merge: true });
 
+                showMessage("รีเซ็ตคิวทั้งหมดสำหรับวันนี้สำเร็จแล้ว");
+                fetchRegistrationReport(); // Refresh report after successful reset
             } catch (e) {
-                console.error("Error resetting queue and starting new session:", e);
-                if (e.message.includes("Session มีการเปลี่ยนแปลง")) {
-                    showError(e.message);
-                } else {
-                    showError("เกิดข้อผิดพลาดในการรีเซ็ตคิวและเริ่มต้น Session ใหม่ โปรดลองอีกครั้ง");
-                }
+                console.error("Error resetting queues:", e);
+                showError("เกิดข้อผิดพลาดในการรีเซ็ตคิว โปรดลองอีกครั้ง");
             } finally {
                 showLoading(false);
                 hideConfirmationModal(); // Ensure modal is hidden
+                // No need to hide admin panel or toggle buttons here, as they are already visible
             }
         }
-
 
         /**
          * Saves pre-registered student IDs from the textarea to Firestore.
@@ -1735,12 +1516,14 @@
             totalPreRegisteredStudentsSpan.textContent = preRegisteredStudentsData.length;
 
             if (preRegisteredStudentsData.length === 0) {
-                noPreRegDataMessageInModal.classList.remove('hidden'); // Use the correct element
+                noPreRegDataMessage.classList.remove('hidden');
                 preRegisteredIdsTableContainer.classList.add('hidden'); // Hide table container if no data
+                // Removed clearAllPreRegisteredIdsButton.disabled = true;
                 return;
             } else {
-                noPreRegDataMessageInModal.classList.add('hidden'); // Use the correct element
+                noPreRegDataMessage.classList.add('hidden');
                 preRegisteredIdsTableContainer.classList.remove('hidden'); // Show table container
+                // Removed clearAllPreRegisteredIdsButton.disabled = false;
             }
 
             preRegisteredStudentsData.forEach(id => {
@@ -1973,80 +1756,46 @@
             }
         }
 
+        // Removed clearAllPreRegisteredIds function
+        /*
+        async function clearAllPreRegisteredIds() {
+            try {
+                showLoading(true);
+                const preRegCollectionRef = collection(db, `artifacts/${appId}/public/data/preRegisteredStudentIds`);
+                const existingDocsSnapshot = await getDocs(preRegCollectionRef);
+                
+                if (existingDocsSnapshot.empty) {
+                    showMessage("ไม่มีข้อมูลรายชื่อนักศึกษาล่วงหน้าให้ลบ");
+                    return;
+                }
+
+                const deleteBatch = writeBatch(db);
+                existingDocsSnapshot.forEach(docSnap => {
+                    deleteBatch.delete(docSnap.ref);
+                });
+                await deleteBatch.commit();
+
+                showMessage("ลบรายชื่อนักศึกษาล่วงหน้าทั้งหมดสำเร็จแล้ว");
+                preRegisteredStudentsData = []; // Clear local data
+                renderPreRegisteredIdsTable(); // Re-render empty table
+            } catch (e) {
+                console.error("Error clearing all pre-registered IDs:", e);
+                showError("เกิดข้อผิดพลาดในการลบรายชื่อนักศึกษาล่วงหน้าทั้งหมด");
+            } finally {
+                showLoading(false);
+            }
+        }
+        */
+
         /**
          * Updates the state of the "Delete Selected" button based on checkbox selections.
          */
         function updateDeleteSelectedButtonState() {
-            selectedPreRegIdsForDeletion.clear(); // Clear previous selections
-
-            // Get all checkboxes in the pre-registered IDs table (excluding the "select all" checkbox)
-            const checkboxes = preRegisteredIdsTableBody.querySelectorAll('.pre-reg-checkbox');
-
-            checkboxes.forEach(checkbox => {
-                if (checkbox.checked) {
-                    selectedPreRegIdsForDeletion.add(checkbox.dataset.studentId);
-                }
-            });
-
-            // Enable or disable the delete button based on whether any checkboxes are selected
+            const checkboxes = preRegisteredIdsTableBody.querySelectorAll('.pre-reg-checkbox:checked');
+            selectedPreRegIdsForDeletion.clear();
+            checkboxes.forEach(cb => selectedPreRegIdsForDeletion.add(cb.dataset.studentId));
             deleteSelectedPreRegisteredIdsButton.disabled = selectedPreRegIdsForDeletion.size === 0;
-
-            // Update the "select all" checkbox state
-            selectAllPreRegIdsCheckbox.checked = selectedPreRegIdsForDeletion.size === checkboxes.length && checkboxes.length > 0;
         }
-
-        /**
-         * Fetches all session IDs from Firestore and populates the dropdown.
-         * @param {string} [selectSessionId] Optional session ID to pre-select in the dropdown.
-         */
-        async function fetchAndPopulateSessionsDropdown(selectSessionId = null) {
-            if (!authReady) {
-                console.warn("Authentication not ready for sessions dropdown.");
-                return;
-            }
-
-            sessionSelect.innerHTML = ''; // Clear existing options
-            const defaultOption = document.createElement('option');
-            defaultOption.value = 'current';
-            defaultOption.textContent = 'Session ปัจจุบัน';
-            sessionSelect.appendChild(defaultOption);
-
-            try {
-                const sessionsRef = collection(db, `artifacts/${appId}/public/data/sessions`);
-                // Order by startTime descending to show newest first
-                const q = query(sessionsRef, orderBy("startTime", "desc"));
-                const querySnapshot = await getDocs(q);
-
-                querySnapshot.forEach(docSnap => {
-                    const session = docSnap.data();
-                    // Don't add the current active session again if it's already there as "Current Session"
-                    if (session.sessionId === currentActiveSessionId && sessionSelect.querySelector(`option[value='${currentActiveSessionId}']`)) {
-                        return;
-                    }
-                    const option = document.createElement('option');
-                    option.value = session.sessionId;
-                    let optionText = `Session: ${formatSessionIdToDateTime(session.sessionId)}`;
-                    if (session.status === "completed") {
-                        optionText += ` (จบ)`;
-                    } else if (session.sessionId === currentActiveSessionId) {
-                        optionText += ` (Active)`;
-                    }
-                    option.textContent = optionText;
-                    sessionSelect.appendChild(option);
-                });
-
-                // Select the current active session or a specified one
-                if (selectSessionId && sessionSelect.querySelector(`option[value='${selectSessionId}']`)) {
-                    sessionSelect.value = selectSessionId;
-                } else {
-                    sessionSelect.value = 'current'; // Default to current if specified not found or not provided
-                }
-            } catch (e) {
-                console.error("Error fetching sessions for dropdown:", e);
-                showError("ไม่สามารถดึงรายการ Session ได้");
-            }
-        }
-
 
         // --- Event Listeners ---
         registerButton.addEventListener('click', registerQueue);
@@ -2073,7 +1822,7 @@
         });
 
         // Event listener for Enter key in password input (in adminPanelContainer)
-        adminPasswordInput.addEventListener('keyup', async (event) => {
+        adminPasswordInput.addEventListener('keyup', (event) => {
             if (event.key === 'Enter') {
                 if (adminPasswordInput.value.trim() === '') {
                     showPasswordError("กรุณากรอก Passphrase");
@@ -2086,9 +1835,7 @@
                     isAdminLoggedIn = true;
                     hideAdminPanel(); // Hide the password input panel
                     toggleAdminActionButtons(true); // Show Export, Import, View/Manage, Reset buttons
-                    await fetchAndPopulateSessionsDropdown(currentActiveSessionId); // Populate dropdown
-                    sessionSelect.value = currentActiveSessionId; // Select current session
-
+                    
                     // Show admin login status message
                     adminLoginStatusMessage.textContent = "เข้าสู่ระบบผู้ดูแลระบบสำเร็จ";
                     adminLoginStatusMessage.classList.add('visible');
@@ -2140,7 +1887,7 @@
         });
 
 
-        // Handle click on the Reset Queue Button (now "Reset Queue & New Session")
+        // Handle click on the Reset Queue Button
         resetQueueButton.addEventListener('click', () => {
             if (!authReady) {
                 showError("ระบบยังไม่พร้อม โปรดรอสักครู่และลองอีกครั้ง");
@@ -2148,8 +1895,13 @@
             }
             hideMessages(); // Clear any previous messages
             if (isAdminLoggedIn) { // Check if admin session is active
-                showConfirmationModal("คุณแน่ใจหรือไม่ที่ต้องการรีเซ็ตคิวและเริ่มต้น Session ใหม่? ข้อมูล Session เก่าจะถูกบันทึกไว้", async () => {
-                    await resetQueueAndStartNewSession();
+                showConfirmationModal("คุณแน่ใจหรือไม่ที่ต้องการรีเซ็ตคิวทั้งหมดสำหรับวันนี้? ข้อมูลจะถูก Export ก่อนลบ", async () => {
+                    const exported = exportRegistrationReportToCsv(); // Try to export
+                    if (exported) { // Only proceed with delete if export was successful
+                        await resetAllQueuesToday();
+                    } else {
+                        showError("ไม่สามารถส่งออกข้อมูลได้ จึงไม่ทำการรีเซ็ตคิว"); // Inform user if export failed
+                    }
                 });
             } else {
                 showAdminPanel(); // Show panel to prompt for password
@@ -2195,21 +1947,21 @@
             }
         });
 
-        // Session select dropdown change listener
-        sessionSelect.addEventListener('change', (event) => {
-            const selectedValue = event.target.value;
-            if (selectedValue === 'current') {
-                fetchRegistrationReport(currentActiveSessionId); // Fetch for current active session
-            } else {
-                fetchRegistrationReport(selectedValue); // Fetch for selected historical session
-            }
+        // Removed Clear All Pre-registered IDs button listener
+        /*
+        clearAllPreRegisteredIdsButton.addEventListener('click', () => {
+            showConfirmationModal("คุณแน่ใจหรือไม่ที่ต้องการลบรายชื่อนักศึกษาที่ลงทะเบียนล่วงหน้าทั้งหมด? การดำเนินการนี้ไม่สามารถย้อนกลับได้", async () => {
+                await clearAllPreRegisteredIds();
+                hideViewPreRegisteredIdsModal(); // Hide modal after clearing
+            });
         });
+        */
+
 
         // Initial setup on page load
-        onAuthStateChanged(auth, async (user) => {
+        onAuthStateChanged(auth, (user) => {
             if (user) {
-                await initializeCurrentSession(); // Ensure current session is set up
-                fetchRegistrationReport(); // Fetch report for the current active session
+                fetchRegistrationReport();
                 // Ensure admin action buttons are hidden on initial load until login
                 toggleAdminActionButtons(false);
                 // Ensure admin panel is hidden on initial load
