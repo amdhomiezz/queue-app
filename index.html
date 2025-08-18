@@ -680,13 +680,13 @@
 
         // MANDATORY: Use __firebase_config from the Canvas environment
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : { 
-            apiKey: "AIzaSyDSHO-N-kX8CRNPv0z9WMK0AfdiAa5_PRA",
-            authDomain: "queue-app2.firebaseapp.com",
-            projectId: "queue-app2",
-            storageBucket: "queue-app2.firebasestorage.app",
-            messagingSenderId: "431996014467",
-            appId: "1:431996014467:web:8c9ab7cfdde6d3b27f70b6",
-            measurementId: "G-N26VFDKR6L"
+            apiKey: "AIzaSyA7OgbR00tGMjrQXAOtLUX34y8sXulK-5s",
+            authDomain: "queue-app-72e53.firebaseapp.com",
+            projectId: "queue-app-72e53",
+            storageBucket: "queue-app-72e53.firebasestorage.app",
+            messagingSenderId: "457625398149",
+            appId: "1:457625398149:web:2752c4993e1ced324172ec",
+            measurementId: "G-BHFP0TNYY3"
         };
         // MANDATORY: Use __app_id for the app ID
         const appId = typeof __app_id !== 'undefined' ? __app_id : firebaseConfig.projectId; // Fallback to projectId if __app_id is not defined
@@ -1051,9 +1051,11 @@
                 const docSnap = await getDoc(queueMetadataRef); // Use getDoc instead of onSnapshot
                 if (docSnap.exists()) {
                     const data = docSnap.data();
-                    highestQueueNumberDisplay.textContent = data.highestQueueNumber || 0;
+                    highestQueueNumberDisplay.textContent = data.highestQueueNumber || 0; // Update main display for admin
+                    currentQueueInfoDiv.style.display = 'block'; // Show the queue number for admin
                 } else {
                     highestQueueNumberDisplay.textContent = 0;
+                    currentQueueInfoDiv.style.display = 'block'; // Still show, but with 0
                     // Initialize data if not present (only if it doesn't exist)
                     const existingDoc = await getDoc(queueMetadataRef); 
                     if (!existingDoc.exists()) {
