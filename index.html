@@ -1674,33 +1674,36 @@
                 if (currentActiveSessionId) {
                     const currentOption = document.createElement('option');
                     currentOption.value = currentActiveSessionId;
-                    // Changed to Buddhist Era (พ.ศ.) for the current session option display
+                    // Current session displays today's date
                     const today = new Date();
-                    const buddhistYear = today.getFullYear() + 543;
-                    currentOption.textContent = `รอบปัจจุบัน (${today.toLocaleString('th-TH', { day: '2-digit', month: '2-digit' })}/${buddhistYear})`; 
+                    currentOption.textContent = `รอบปัจจุบัน (${today.toLocaleString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' })})`; // Using year: 'numeric' which should be Buddhist year in th-TH locale
                     sessionSelect.appendChild(currentOption);
                 }
 
                 sessionSummaries.forEach(session => {
                     const option = document.createElement('option');
                     option.value = session.sessionId;
-                    
-                    const startDate = session.startTime ? session.startTime.toDate() : null;
-                    const endDate = session.endTime ? session.endTime.toDate() : null;
 
-                    let startDateFormatted = 'N/A';
-                    let endDateFormatted = 'N/A';
+                    const startDate = session.startTime ? session.startTime.toDate() : null;
+                    const resetDate = session.resetDate || 'N/A'; // This is already the YYYY-MM-DD string
+
+                    let startTimeFormatted = 'N/A';
 
                     if (startDate) {
-                        const startYearBE = startDate.getFullYear() + 543;
-                        startDateFormatted = startDate.toLocaleString('th-TH', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) + `/${startYearBE}`;
+                        // Format start time as "วันเดือนปี เวลาเริ่ม"
+                        startTimeFormatted = startDate.toLocaleString('th-TH', {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                            hour12: false // Use 24-hour format
+                        });
                     }
-                    if (endDate) {
-                        const endYearBE = endDate.getFullYear() + 543;
-                        endDateFormatted = endDate.toLocaleString('th-TH', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) + `/${endYearBE}`;
-                    }
-                    
-                    option.textContent = `รอบคิว: ${startDateFormatted} - ${endDateFormatted} (${session.totalRegisteredStudents || 0} คน)`;
+
+                    // New format: "เริ่ม: วันเดือนปี เวลาเริ่ม รีเซ็ต: วันเดือนปีที่รีเซ็ต"
+                    option.textContent = `เริ่ม: ${startTimeFormatted} รีเซ็ต: ${resetDate} (${session.totalRegisteredStudents || 0} คน)`;
                     sessionSelect.appendChild(option);
                 });
 
