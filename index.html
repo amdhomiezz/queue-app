@@ -1680,30 +1680,29 @@
                     sessionSelect.appendChild(currentOption);
                 }
 
-                sessionSummaries.forEach(session => {
+                 sessionSummaries.forEach(session => {
                     const option = document.createElement('option');
                     option.value = session.sessionId;
-
+                    
                     const startDate = session.startTime ? session.startTime.toDate() : null;
-                    const resetDate = session.resetDate || 'N/A'; // This is already the YYYY-MM-DD string
+                    const endDate = session.endTime ? session.endTime.toDate() : null;
 
+                    let startDateFormatted = 'N/A';
                     let startTimeFormatted = 'N/A';
+                    let endDateFormatted = 'N/A';
+                    let endTimeFormatted = 'N/A';
 
                     if (startDate) {
-                        // Format start time as "วันเดือนปี เวลาเริ่ม"
-                        startTimeFormatted = startDate.toLocaleString('th-TH', {
-                            year: 'numeric',
-                            month: '2-digit',
-                            day: '2-digit',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            second: '2-digit',
-                            hour12: false // Use 24-hour format
-                        });
+                        startDateFormatted = startDate.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                        startTimeFormatted = startDate.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
                     }
-
-                    // New format: "เริ่ม: วันเดือนปี เวลาเริ่ม รีเซ็ต: วันเดือนปีที่รีเซ็ต"
-                    option.textContent = `เริ่ม: ${startTimeFormatted} รีเซ็ต: ${resetDate} (${session.totalRegisteredStudents || 0} คน)`;
+                    if (endDate) {
+                        endDateFormatted = endDate.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                        endTimeFormatted = endDate.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+                    }
+                    
+                    // New format: "รอบคิว: วันที่เริ่ม (เวลาเริ่ม) - รีเซ็ตเมื่อ: วันที่สิ้นสุด (เวลาที่รีเซ็ต) (X คน)"
+                    option.textContent = `รอบคิว: ${startDateFormatted} (${startTimeFormatted} น.) - รีเซ็ตเมื่อ: ${endDateFormatted} (${endTimeFormatted} น.) (${session.totalRegisteredStudents || 0} คน)`;
                     sessionSelect.appendChild(option);
                 });
 
@@ -2315,4 +2314,5 @@
     </script>
 </body>
 </html>
+
 
