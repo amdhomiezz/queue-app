@@ -537,6 +537,15 @@
         <!-- ส่วนสำหรับรายงานการลงทะเบียน - ซ่อนตารางและจะแสดงเมื่อผู้ดูแลระบบกดปุ่มเท่านั้น -->
         <div id="reportSection" class="report-section" style="display: none;">
             <h2 class="text-xl font-bold text-gray-800 mb-4">ลำดับหมายเลขผู้เรียนประจำวัน</h2>
+            
+            <div class="mb-4 flex items-center justify-center space-x-4">
+                <label for="sessionSelect" class="font-semibold text-gray-700">เลือกรอบรายงาน:</label>
+                <select id="sessionSelect" class="p-2 border rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                    <!-- Options will be populated by JavaScript -->
+                </select>
+                <button id="viewSelectedReportButton" class="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-lg">แสดงรายงาน</button>
+            </div>
+
             <div id="reportLoadingIndicator" class="report-loading-indicator">
                 กำลังโหลดรายงาน...
             </div>
@@ -712,6 +721,8 @@
         const reportLoadingIndicator = document.getElementById('reportLoadingIndicator');
         const closeDailyReportButton = document.getElementById('closeDailyReportButton'); // New close button
         const currentQueueInfoDiv = document.getElementById('currentQueueInfo'); // Reference to the queue info div
+        const sessionSelect = document.getElementById('sessionSelect'); // New dropdown for sessions
+        const viewSelectedReportButton = document.getElementById('viewSelectedReportButton'); // New button to view selected report
 
         // Admin UI elements
         const adminPanelContainer = document.getElementById('adminPanelContainer');
@@ -757,9 +768,12 @@
         let currentUserId = null;
         let authReady = false;
         let isAdminLoggedIn = false; // Tracks if an admin session is active
-        let currentRegistrationsData = []; // To store fetched report data for export
+        let currentRegistrationsData = []; // To store fetched report data for export (for the currently displayed report)
         let preRegisteredStudentsData = []; // To store fetched pre-registered student IDs for view/manage
         let selectedPreRegIdsForDeletion = new Set(); // To store selected IDs for multi-delete
+        let currentActiveSessionId = null; // To store the ID of the current active registration session
+        let sessionSummaries = []; // To store summaries of all past sessions for the dropdown
+        let currentHighestQueueNumber = 0; // Initialize global variable
 
         // Ensure __initial_auth_token is defined or defaults to undefined
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : undefined;
@@ -780,6 +794,9 @@
                 hideDailyReport();
                 // Ensure highestQueueNumberDisplay is hidden for non-admin view on load
                 currentQueueInfoDiv.style.display = 'none';
+
+                // Initialize current session ID on app load
+                await initializeCurrentSessionId();
 
             } else {
                 console.log("Firebase not authenticated. Attempting sign-in...");
@@ -829,12 +846,22 @@
             const day = String(today.getDate()).padStart(2, '0');
             return `${year}-${month}-${day}`;
         }
+        
+        /**
+         * Generates a unique session ID, typically a timestamp string.
+         * @returns {string} Unique session ID.
+         */
+        function getUniqueSessionId() {
+            // Using ISO string for uniqueness and sortability, also readable
+            return new Date().toISOString(); 
+        }
 
         /**
          * Displays a success message to the user.
-         * @param {string} message Message to display.
+         * @param {string} message General message to display.
+         * @param {object} [registrationDetails=null] Optional object with studentId, queueNumber, dailyAnswer, and timestamp.
          */
-        function showMessage(message) {
+        function showMessage(message, registrationDetails = null) {
             // Only use messageDisplay for general app messages, not admin login status
             if (!message.includes("เข้าสู่ระบบผู้ดูแลระบบสำเร็จ")) {
                 messageDisplay.classList.remove('hidden', 'error-message');
@@ -843,11 +870,26 @@
                 passwordErrorDisplay.classList.add('hidden'); // Hide password error
                 preRegSaveErrorDisplayModal.classList.add('hidden'); // Hide pre-reg save error
 
-                // Check if it's the specific registration success message
-                if (message.startsWith("คุณได้รับคิวหมายเลข:")) {
-                    const queueNumber = message.split(":")[1].trim(); // Extract the number
-                    // Set innerHTML to apply separate styling to the number
-                    messageDisplay.innerHTML = `<span class="queue-text">คุณได้รับลำดับผู้เรียนหมายเลข :</span> <span class="queue-number-display">${queueNumber}</span>`;
+                if (registrationDetails && registrationDetails.queueNumber !== null && 
+                    registrationDetails.studentId !== null && 
+                    registrationDetails.dailyAnswer !== null && 
+                    registrationDetails.timestamp !== null) {
+                    
+                    const dateTimeString = registrationDetails.timestamp.toLocaleString('th-TH', {
+                        year: 'numeric', month: '2-digit', day: '2-digit',
+                        hour: '2-digit', minute: '2-digit', second: '2-digit'
+                    });
+
+                    // Construct the detailed message HTML
+                    messageDisplay.innerHTML = `
+                        <p class="queue-text">คุณได้รับลำดับผู้เรียนหมายเลข :</p>
+                        <p class="queue-number-display">${registrationDetails.queueNumber}</p>
+                        <p class="text-sm text-gray-700 mt-2">
+                            <span class="font-semibold">วัน-เวลา:</span> ${dateTimeString}<br>
+                            <span class="font-semibold">รหัสนักศึกษา:</span> ${registrationDetails.studentId}<br>
+                            <span class="font-semibold">คำตอบประจำวัน:</span> ${registrationDetails.dailyAnswer}
+                        </p>
+                    `;
                     messageDisplay.classList.add('highlight-success-message'); // Apply general highlight styles
                 } else {
                     messageDisplay.textContent = message;
@@ -1024,6 +1066,7 @@
             noReportDataMessage.classList.add('hidden');
             // Hide highestQueueNumberDisplay when daily report is closed
             currentQueueInfoDiv.style.display = 'none';
+            sessionSelect.innerHTML = ''; // Clear dropdown when report is hidden
         }
 
         /**
@@ -1039,6 +1082,44 @@
         }
 
         /**
+         * Initializes or retrieves the current active session ID from Firestore.
+         * If no session exists, it creates a new one.
+         */
+        async function initializeCurrentSessionId() {
+            if (!authReady) return;
+
+            const queueMetadataRef = doc(db, `artifacts/${appId}/public/data/queueMetadata`, 'currentQueue');
+            try {
+                const docSnap = await getDoc(queueMetadataRef);
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    currentHighestQueueNumber = data.highestQueueNumber || 0;
+                    highestQueueNumberDisplay.textContent = currentHighestQueueNumber; // Direct assignment for display
+                    currentActiveSessionId = data.currentSessionId || getUniqueSessionId(); // Use existing or create new
+                    
+                    // If currentSessionId was missing, update Firestore
+                    if (!data.currentSessionId) {
+                         await setDoc(queueMetadataRef, { currentSessionId: currentActiveSessionId }, { merge: true });
+                    }
+                } else {
+                    // Initialize if the document doesn't exist
+                    currentHighestQueueNumber = 0; // Ensures it's 0 if doc doesn't exist
+                    highestQueueNumberDisplay.textContent = 0; // Direct assignment for display
+                    currentActiveSessionId = getUniqueSessionId();
+                    await setDoc(queueMetadataRef, {
+                        highestQueueNumber: 0,
+                        lastResetDate: getCurrentDate(),
+                        currentSessionId: currentActiveSessionId,
+                        sessionStartTime: serverTimestamp() // Record start time for the first session
+                    });
+                }
+            } catch (error) {
+                console.error("Error initializing current session ID:", error);
+                showError("เกิดข้อผิดพลาดในการเริ่มต้นเซสชันคิว");
+            }
+        }
+
+        /**
          * Fetches and updates the highest queue number displayed for admin.
          */
         async function updateHighestQueueNumberDisplayForAdmin() {
@@ -1051,19 +1132,9 @@
                 const docSnap = await getDoc(queueMetadataRef); // Use getDoc instead of onSnapshot
                 if (docSnap.exists()) {
                     const data = docSnap.data();
-                    highestQueueNumberDisplay.textContent = data.highestQueueNumber || 0; // Update main display for admin
-                    currentQueueInfoDiv.style.display = 'block'; // Show the queue number for admin
+                    highestQueueNumberDisplay.textContent = data.highestQueueNumber || 0;
                 } else {
                     highestQueueNumberDisplay.textContent = 0;
-                    currentQueueInfoDiv.style.display = 'block'; // Still show, but with 0
-                    // Initialize data if not present (only if it doesn't exist)
-                    const existingDoc = await getDoc(queueMetadataRef); 
-                    if (!existingDoc.exists()) {
-                         await setDoc(queueMetadataRef, {
-                            highestQueueNumber: 0,
-                            lastResetDate: getCurrentDate()
-                        }, { merge: true });
-                    }
                 }
             } catch (error) {
                 console.error("Error fetching queue metadata for admin display:", error);
@@ -1106,8 +1177,8 @@
          * Handles the queue registration process.
          */
         async function registerQueue() {
-            if (!authReady) {
-                showError("ระบบยังไม่พร้อม โปรดรอสักครู่และลองอีกครั้ง");
+            if (!authReady || !currentActiveSessionId) {
+                showError("ระบบยังไม่พร้อม หรือเซสชันยังไม่ถูกกำหนด โปรดรอสักครู่และลองอีกครั้ง");
                 showLoading(false);
                 return;
             }
@@ -1117,6 +1188,7 @@
 
             const studentId = studentIdInput.value.trim();
             const dailyAnswer = dailyAnswerInput.value.trim(); // Get the daily answer
+            const registrationTimeClient = new Date(); // Capture client-side timestamp for display
 
             // Validate studentId for 10 digits and numeric content
             if (studentId.length !== 10 || isNaN(studentId)) {
@@ -1162,43 +1234,48 @@
                     const queueMetadataRef = doc(db, `artifacts/${appId}/public/data/queueMetadata`, 'currentQueue');
                     const queueMetadataDoc = await transaction.get(queueMetadataRef);
 
-                    let currentHighestQueueNumber = 0;
+                    // currentHighestQueueNumber is a global variable, ensure it's updated within the transaction scope
+                    let currentHighestQueueNumberInTx = 0; 
                     let lastResetDateInDb = null;
+                    let sessionStartTime = null; 
 
                     if (queueMetadataDoc.exists()) {
                         const data = queueMetadataDoc.data();
-                        currentHighestQueueNumber = data.highestQueueNumber || 0;
-                        lastResetDateInDb = data.lastResetDate;
+                        currentHighestQueueNumberInTx = data.highestQueueNumber || 0;
+                        lastResetDateInDb = data.lastResetDate; 
+                        currentActiveSessionId = data.currentSessionId || currentActiveSessionId; 
+                        sessionStartTime = data.sessionStartTime ? data.sessionStartTime.toDate() : null; 
+                    } else {
+                        currentActiveSessionId = getUniqueSessionId();
+                        sessionStartTime = new Date(); 
+                        transaction.set(queueMetadataRef, { currentSessionId: currentActiveSessionId, highestQueueNumber: 0, sessionStartTime: serverTimestamp() }, { merge: true });
                     }
+                    
+                    // Update the global currentHighestQueueNumber here for consistency after transaction
+                    currentHighestQueueNumber = currentHighestQueueNumberInTx;
 
-                    // Reset if it's a new day
-                    if (lastResetDateInDb !== currentDate) {
-                        currentHighestQueueNumber = 0;
-                    }
-
-                    const nextQueueNumber = currentHighestQueueNumber + 1;
-
-                    // Check queue limit
-                    if (nextQueueNumber > 200) {
-                        throw new Error("คิวเต็มแล้วสำหรับวันนี้"); // Changed error message slightly
-                    }
-
-                    // Check if student ID has already registered for today in Firestore (within transaction)
+                    // Check if student ID has already registered for the current session in Firestore
                     const q = query(
                         collection(db, `artifacts/${appId}/public/data/queueRegistrations`),
                         where("studentId", "==", studentId),
-                        where("registrationDate", "==", currentDate)
+                        where("sessionId", "==", currentActiveSessionId) // Check by sessionId
                     );
                     const querySnapshot = await getDocs(q); // This is a read operation
                     if (!querySnapshot.empty) {
-                        // If a duplicate is found, throw an error to abort the transaction.
-                        throw new Error("รหัสนักศึกษานี้ได้ลงทะเบียนคิวไปแล้วสำหรับวันนี้");
+                        // If a duplicate is found for the current session, throw an error to abort the transaction.
+                        throw new Error("รหัสนักศึกษานี้ได้ลงทะเบียนคิวไปแล้วสำหรับรอบนี้"); // Updated message
+                    }
+
+                    const nextQueueNumber = currentHighestQueueNumberInTx + 1; // Use in-transaction value
+
+                    // Check queue limit
+                    if (nextQueueNumber > 200) {
+                        throw new Error("คิวเต็มแล้วสำหรับรอบนี้"); // Updated error message
                     }
 
                     // Update highestQueueNumber in metadata within the transaction
                     transaction.set(queueMetadataRef, {
-                        highestQueueNumber: nextQueueNumber,
-                        lastResetDate: currentDate
+                        highestQueueNumber: nextQueueNumber
                     }, { merge: true });
 
                     // Add the new registration record within the transaction
@@ -1206,40 +1283,45 @@
                     transaction.set(newRegistrationDocRef, {
                         studentId: studentId,
                         queueNumber: nextQueueNumber,
-                        registrationDate: currentDate,
-                        dailyAnswer: dailyAnswer, // Include the daily answer
+                        registrationDate: currentDate, 
+                        dailyAnswer: dailyAnswer, 
                         deviceId: deviceId,
-                        timestamp: serverTimestamp(),
+                        timestamp: serverTimestamp(), 
                         latitude: latitude,
-                        longitude: longitude
+                        longitude: longitude,
+                        sessionId: currentActiveSessionId 
                     });
 
-                    return nextQueueNumber; // Return the new unique number if transaction succeeds
+                    return nextQueueNumber; 
                 });
 
                 // If we reach here, the transaction was successful and newQueueNumber is valid
-                localStorage.setItem(`lastRegistrationDate_${appId}_${deviceId}`, currentDate);
-                showMessage(`คุณได้รับคิวหมายเลข: ${newQueueNumber}`);
+                localStorage.setItem(`lastRegistrationDate_${appId}_${deviceId}`, currentDate); 
+                
+                showMessage(
+                    `คุณได้รับคิวหมายเลข: ${newQueueNumber}`,
+                    {
+                        queueNumber: newQueueNumber,
+                        studentId: studentId,
+                        dailyAnswer: dailyAnswer,
+                        timestamp: registrationTimeClient 
+                    }
+                );
                 studentIdInput.value = '';
                 dailyAnswerInput.value = '';
                 
-                // If admin report is visible, it should be updated via its own refresh
                 if (reportSection.style.display !== 'none' && isAdminLoggedIn) {
-                     updateHighestQueueNumberDisplayForAdmin(); // Update admin's queue count
-                     refreshAndDisplayRegistrationReport(); // Refresh full report
+                     updateHighestQueueNumberDisplayForAdmin(); 
+                     refreshAndDisplayRegistrationReport(currentActiveSessionId); 
                 }
 
             } catch (e) {
                 console.error("Error in transaction or registration:", e);
-                // Handle specific errors thrown from within the transaction
                 if (e.message === "คุณยังไม่มีรายชื่ออยู่ในระบบเช็คชื่อ กรุณาแจ้งอาจารย์ผู้สอน" ||
-                    e.message === "คิวเต็มแล้วสำหรับวันนี้" ||
-                    e.message === "รหัสนักศึกษานี้ได้ลงทะเบียนคิวไปแล้วสำหรับวันนี้") {
+                    e.message === "คิวเต็มแล้วสำหรับรอบนี้" ||
+                    e.message === "รหัสนักศึกษานี้ได้ลงทะเบียนคิวไปแล้วสำหรับรอบนี้") {
                     showError(e.message);
                 } else if (e.code === 'ABORTED') {
-                    // This often means a transaction retry failed due to contention, or a custom error was thrown
-                    // If it's a custom error, we've already caught it by its message above.
-                    // If not, it's generic contention.
                     showError("เกิดข้อผิดพลาดในการลงทะเบียนคิว: มีผู้ใช้ลงทะเบียนพร้อมกัน กรุณาลองอีกครั้ง");
                 }
                 else {
@@ -1251,22 +1333,101 @@
         }
 
         /**
-         * Fetches and displays the registration report for the current day.
-         * This function now also updates the 'currentQueueInfoDiv' for admin view.
+         * Ends the current session, archives its summary, and starts a new session.
          */
-        async function refreshAndDisplayRegistrationReport() {
+        async function endCurrentSessionAndStartNew() {
+            if (!authReady) {
+                showError("ระบบยังไม่พร้อม โปรดรอสักครู่และลองอีกครั้ง");
+                return;
+            }
+
+            showLoading(true);
+            hideMessages();
+
+            try {
+                // Get current metadata
+                const queueMetadataRef = doc(db, `artifacts/${appId}/public/data/queueMetadata`, 'currentQueue');
+                const queueMetadataDoc = await getDoc(queueMetadataRef);
+
+                let previousHighestQueueNumber = 0;
+                let oldSessionId = null;
+                let sessionStartTime = null;
+
+                if (queueMetadataDoc.exists()) {
+                    const data = queueMetadataDoc.data();
+                    previousHighestQueueNumber = data.highestQueueNumber || 0;
+                    oldSessionId = data.currentSessionId || currentActiveSessionId;
+                    sessionStartTime = data.sessionStartTime ? data.sessionStartTime.toDate() : null;
+                } else {
+                    oldSessionId = currentActiveSessionId;
+                    sessionStartTime = serverTimestamp(); // Fallback if metadata document doesn't exist
+                }
+
+                // 1. Archive the current session summary if there were registrations
+                // Also ensures that if oldSessionId is null/undefined, it doesn't try to archive
+                if (previousHighestQueueNumber > 0 && oldSessionId) {
+                    const sessionSummaryRef = doc(db, `artifacts/${appId}/public/data/queueSessions`, oldSessionId);
+                    await setDoc(sessionSummaryRef, {
+                        sessionId: oldSessionId,
+                        totalRegisteredStudents: previousHighestQueueNumber,
+                        startTime: sessionStartTime || serverTimestamp(), // Use stored start time or current time
+                        endTime: serverTimestamp(), // End time is now
+                        resetBy: currentUserId,
+                        resetDate: getCurrentDate()
+                    }, { merge: true }); // Use merge to avoid overwriting other fields if they exist
+                }
+
+                // 2. Start a new session
+                const newSessionId = getUniqueSessionId();
+                await setDoc(queueMetadataRef, {
+                    highestQueueNumber: 0,
+                    lastResetDate: getCurrentDate(), // Update last reset date for new session
+                    currentSessionId: newSessionId,
+                    sessionStartTime: serverTimestamp() // Set new start time for the new session
+                }, { merge: true });
+
+                currentActiveSessionId = newSessionId; // Update global variable
+                highestQueueNumberDisplay.textContent = 0; // Reset display for admin
+
+                showMessage("รีเซ็ตคิวสำเร็จและเริ่มต้นรอบคิวใหม่แล้ว ข้อมูลรอบเก่าถูกเก็บไว้");
+                
+                await populateSessionDropdown(); // Refresh dropdown with new session
+                sessionSelect.value = currentActiveSessionId; // Select the new active session
+                refreshAndDisplayRegistrationReport(currentActiveSessionId); // Display report for the new session
+
+            } catch (e) {
+                console.error("Error ending current session and starting new:", e);
+                showError("เกิดข้อผิดพลาดในการรีเซ็ตและเริ่มต้นรอบคิวใหม่ โปรดลองอีกครั้ง");
+            } finally {
+                showLoading(false);
+                hideConfirmationModal();
+            }
+        }
+
+        /**
+         * Fetches and displays the registration report for a specific session ID.
+         * If no sessionId is provided, it defaults to the current active session.
+         * @param {string} [sessionIdToDisplay=currentActiveSessionId] The session ID to display the report for.
+         */
+        async function refreshAndDisplayRegistrationReport(sessionIdToDisplay = currentActiveSessionId) {
             if (!authReady) {
                 console.warn("Authentication not ready for report fetch.");
                 showError("ระบบยังไม่พร้อม โปรดรอสักครู่และลองอีกครั้ง");
                 return;
             }
+            if (!sessionIdToDisplay) {
+                console.warn("No session ID to display report for.");
+                showError("ไม่พบรอบรายงานที่เลือก โปรดเลือกรอบ");
+                showReportLoading(false); 
+                return;
+            }
 
             showReportLoading(true);
-            hideMessages(); // Clear any other messages
+            hideMessages(); 
 
-            const currentDate = getCurrentDate();
             try {
-                // Fetch current queue number for admin view directly here to ensure freshness
+                // Update current queue number for admin view (always for the active session)
+                // This is a direct fetch, not a real-time listener, to reduce reads.
                 const queueMetadataRef = doc(db, `artifacts/${appId}/public/data/queueMetadata`, 'currentQueue');
                 const queueMetadataDoc = await getDoc(queueMetadataRef);
                 if (queueMetadataDoc.exists()) {
@@ -1278,9 +1439,10 @@
                     currentQueueInfoDiv.style.display = 'block'; // Still show, but with 0
                 }
 
+
                 const q = query(
                     collection(db, `artifacts/${appId}/public/data/queueRegistrations`),
-                    where("registrationDate", "==", currentDate)
+                    where("sessionId", "==", sessionIdToDisplay) 
                 );
                 const querySnapshot = await getDocs(q);
 
@@ -1310,13 +1472,13 @@
                         if (data.length === 0) return '';
 
                         let tableHtml = `
-                            <table class="report-table mb-4"> <!-- Added mb-4 for spacing -->
+                            <table class="report-table mb-4"> 
                                 <thead>
                                     <tr>
                                         <th>ลำดับ</th>
                                         <th>รหัสนักศึกษา</th>
-                                        <th>คำตอบประจำวัน</th> <!-- New header -->
-                                        <th>วัน-เวลาลงทะเบียน</th> <!-- Updated header -->
+                                        <th>คำตอบประจำวัน</th> 
+                                        <th>วัน-เวลาลงทะเบียน</th> 
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1328,7 +1490,7 @@
                                 <tr>
                                     <td>${reg.queueNumber}</td>
                                     <td>${reg.studentId}</td>
-                                    <td>${reg.dailyAnswer || 'N/A'}</td> <!-- Display daily answer -->
+                                    <td>${reg.dailyAnswer || 'N/A'}</td> 
                                     <td>${registrationDateTime}</td>
                                 </tr>
                             `;
@@ -1354,14 +1516,72 @@
                 } else {
                     noReportDataMessage.classList.remove('hidden');
                 }
-                reportSection.style.display = 'block'; // Show the report section
+                reportSection.style.display = 'block'; 
             } catch (e) {
                 console.error("Error fetching registration report:", e);
                 showError("เกิดข้อผิดพลาดในการดึงรายงานการลงทะเบียน");
             } finally {
                 showReportLoading(false);
+                await populateSessionDropdown(sessionIdToDisplay); // Repopulate dropdown to ensure selected session is correct
             }
         }
+
+        /**
+         * Populates the session dropdown with available historical sessions.
+         * Optionally pre-selects a given session ID.
+         * @param {string} [selectedId=null] The session ID to pre-select in the dropdown.
+         */
+        async function populateSessionDropdown(selectedId = null) {
+            sessionSelect.innerHTML = ''; 
+            sessionSummaries = []; 
+
+            try {
+                const q = query(collection(db, `artifacts/${appId}/public/data/queueSessions`));
+                const querySnapshot = await getDocs(q);
+                querySnapshot.forEach(docSnap => {
+                    const data = docSnap.data();
+                    sessionSummaries.push(data);
+                });
+
+                // Sort sessions by end time (newest first)
+                sessionSummaries.sort((a, b) => {
+                    const timeA = a.endTime ? a.endTime.toDate().getTime() : 0;
+                    const timeB = b.endTime ? b.endTime.toDate().getTime() : 0;
+                    return timeB - timeA;
+                });
+
+                // Add "Current Session" as the first option if currentActiveSessionId exists and is valid
+                if (currentActiveSessionId) {
+                    const currentOption = document.createElement('option');
+                    currentOption.value = currentActiveSessionId;
+                    currentOption.textContent = `รอบปัจจุบัน (${getCurrentDate()})`; 
+                    sessionSelect.appendChild(currentOption);
+                }
+
+                sessionSummaries.forEach(session => {
+                    const option = document.createElement('option');
+                    option.value = session.sessionId;
+                    
+                    const startDate = session.startTime ? session.startTime.toDate().toLocaleString('th-TH', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'N/A';
+                    const endDate = session.endTime ? session.endTime.toDate().toLocaleString('th-TH', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'N/A';
+                    
+                    option.textContent = `รอบคิว: ${startDate} - ${endDate} (${session.totalRegisteredStudents || 0} คน)`;
+                    sessionSelect.appendChild(option);
+                });
+
+                // Set selected value
+                if (selectedId) {
+                    sessionSelect.value = selectedId;
+                } else if (currentActiveSessionId) {
+                    sessionSelect.value = currentActiveSessionId;
+                }
+
+            } catch (error) {
+                console.error("Error populating session dropdown:", error);
+                showError("เกิดข้อผิดพลาดในการดึงข้อมูลรอบรายงาน");
+            }
+        }
+
 
         /**
          * Exports the current registration report data to a CSV file.
@@ -1369,11 +1589,11 @@
         function exportRegistrationReportToCsv() {
             if (!currentRegistrationsData || currentRegistrationsData.length === 0) {
                 showError("ไม่มีข้อมูลรายงานให้ส่งออก");
-                return false; // Indicate failure to export
+                return false; 
             }
 
             // Updated headers for CSV
-            const headers = ["ลำดับ", "รหัสนักศึกษา", "คำตอบประจำวัน", "เวลาลงทะเบียน", "ละติจูด", "ลองจิจูด"];
+            const headers = ["ลำดับ", "รหัสนักศึกษา", "คำตอบประจำวัน", "เวลาลงทะเบียน", "ละติจูด", "ลองจิจูด", "Session ID"]; 
             // Escape values that might contain commas or newlines
             const escapeCsv = (value) => {
                 if (value === null || value === undefined) return '';
@@ -1394,12 +1614,25 @@
                 return [
                     escapeCsv(reg.queueNumber),
                     escapeCsv(reg.studentId),
-                    escapeCsv(reg.dailyAnswer || 'N/A'), // Include daily answer in CSV
+                    escapeCsv(reg.dailyAnswer || 'N/A'), 
                     escapeCsv(registrationDateTime),
                     escapeCsv(latitude),
-                    escapeCsv(longitude)
+                    escapeCsv(longitude),
+                    escapeCsv(reg.sessionId || 'N/A') 
                 ].join(',');
             });
+
+            // Determine filename based on selected session or current date
+            let filename = `รายงานลำดับผู้เรียน_${getCurrentDate()}.csv`;
+            if (sessionSelect.value && sessionSelect.value !== currentActiveSessionId) {
+                const selectedSession = sessionSummaries.find(s => s.sessionId === sessionSelect.value);
+                if (selectedSession && selectedSession.startTime && selectedSession.endTime) {
+                    const start = selectedSession.startTime.toDate().toLocaleString('th-TH', { year: 'numeric', month: '2-digit', day: '2-digit' });
+                    const end = selectedSession.endTime.toDate().toLocaleString('th-TH', { year: 'numeric', month: '2-digit', day: '2-digit' });
+                    filename = `รายงานลำดับผู้เรียน_รอบ_${start}-${end}.csv`;
+                }
+            }
+
 
             const csvContent = [headers.map(escapeCsv).join(','), ...rows].join('\n');
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -1407,87 +1640,25 @@
 
             const a = document.createElement('a');
             a.href = url;
-            a.download = `รายงานลำดับผู้เรียน_${getCurrentDate()}.csv`;
-            document.body.appendChild(a); // Append to body to make it clickable in some browsers
+            a.download = filename;
+            document.body.appendChild(a); 
             a.click();
-            document.body.removeChild(a); // Clean up
-            URL.revokeObjectURL(url); // Release the object URL
+            document.body.removeChild(a); 
+            URL.revokeObjectURL(url); 
 
             showMessage("บันทึกรายงานเป็นไฟล์ CSV เรียบร้อยแล้ว");
-            return true; // Indicate successful export
+            return true; 
         }
 
-
-        /**
-         * Resets all queues for the current day by deleting all registration documents
-         * and resetting the highest queue number.
-         * IMPORTANT: For a production app, this operation should be protected by
-         * a robust server-side authentication and authorization mechanism, not just a client-side password.
-         */
-        async function resetAllQueuesToday() {
-            if (!authReady) {
-                showError("ระบบยังไม่พร้อม โปรดรอสักครู่และลองอีกครั้ง");
-                return;
-            }
-
-            showLoading(true);
-            hideMessages();
-
-            const currentDate = getCurrentDate();
-            try {
-                // 1. Get all registrations for today
-                const q = query(
-                    collection(db, `artifacts/${appId}/public/data/queueRegistrations`),
-                    where("registrationDate", "==", currentDate)
-                );
-                const querySnapshot = await getDocs(q);
-
-                if (querySnapshot.empty) {
-                    showMessage("ไม่มีข้อมูลคิวให้รีเซ็ตสำหรับวันนี้");
-                    showLoading(false);
-                    return;
-                }
-
-                // 2. Delete all documents in a batch for efficiency
-                const batch = writeBatch(db);
-                querySnapshot.forEach((docSnap) => {
-                    batch.delete(docSnap.ref);
-                });
-                await batch.commit();
-
-                // 3. Reset highest queue number in metadata
-                const queueMetadataRef = doc(db, `artifacts/${appId}/public/data/queueMetadata`, 'currentQueue');
-                await setDoc(queueMetadataRef, {
-                    highestQueueNumber: 0,
-                    lastResetDate: currentDate // Update reset date to confirm it was reset today
-                }, { merge: true });
-
-                showMessage("รีเซ็ตคิวทั้งหมดสำหรับวันนี้สำเร็จแล้ว");
-                
-                // If admin report is visible, refresh it
-                if (reportSection.style.display !== 'none' && isAdminLoggedIn) {
-                    refreshAndDisplayRegistrationReport();
-                } else {
-                    currentRegistrationsData = []; // Clear local data
-                    highestQueueNumberDisplay.textContent = 0; // Reset display immediately
-                }
-            } catch (e) {
-                console.error("Error resetting queues:", e);
-                showError("เกิดข้อผิดพลาดในการรีเซ็ตคิว โปรดลองอีกครั้ง");
-            } finally {
-                showLoading(false);
-                hideConfirmationModal();
-            }
-        }
 
         /**
          * Saves pre-registered student IDs from the textarea to Firestore.
          */
         async function savePreRegisteredIds() {
-            console.log("savePreRegisteredIds function called."); // Add this for debugging
+            console.log("savePreRegisteredIds function called."); 
 
-            hideMessages(); // Clear all messages
-            preRegSaveErrorDisplayModal.classList.add('hidden'); // Hide specific pre-reg save error
+            hideMessages(); 
+            preRegSaveErrorDisplayModal.classList.add('hidden'); 
 
             const idsToSaveText = preRegisteredIdsTextareaModal.value.trim();
             if (!idsToSaveText) {
@@ -1497,7 +1668,7 @@
             }
 
             // Split by newline or comma, filter out empty strings
-            const idsToSave = idsToSaveText.split(/[\n,;]+/) // Also split by semicolon
+            const idsToSave = idsToSaveText.split(/[\n,;]+/) 
                                            .map(id => id.trim())
                                            .filter(id => id.length > 0);
 
@@ -1519,19 +1690,17 @@
                 showLoading(true);
                 const preRegCollectionRef = collection(db, `artifacts/${appId}/public/data/preRegisteredStudentIds`);
                 const addBatch = writeBatch(db);
-                let addedCount = 0; // Track newly added IDs
-                let updatedCount = 0; // Track updated IDs (already existed)
+                let addedCount = 0; 
+                let updatedCount = 0; 
 
                 for (const id of idsToSave) {
                     const docRef = doc(preRegCollectionRef, id);
-                    const docSnap = await getDoc(docRef); // Check if ID already exists
+                    const docSnap = await getDoc(docRef); 
 
                     if (docSnap.exists()) {
-                        // If exists, update its timestamp/addedBy (effectively "stacking" by keeping it)
                         addBatch.set(docRef, { exists: true, addedBy: currentUserId, timestamp: serverTimestamp() }, { merge: true });
                         updatedCount++;
                     } else {
-                        // If not exists, add as new
                         addBatch.set(docRef, { exists: true, addedBy: currentUserId, timestamp: serverTimestamp() });
                         addedCount++;
                     }
@@ -1540,7 +1709,7 @@
                 console.log(`Pre-registered IDs added: ${addedCount}, updated: ${updatedCount}.`);
 
                 showMessage(`นำเข้าข้อมูลสำเร็จ: เพิ่มนักศึกษา ${addedCount} รายการ, อัปเดต ${updatedCount} รายการ`);
-                hideImportStudentIdsModal(); // Hide import modal after successful save
+                hideImportStudentIdsModal(); 
             } catch (e) {
                 console.error("Error saving pre-registered IDs:", e);
                 let errorMessage = "เกิดข้อผิดพลาดในการบันทึกรายชื่อนักศึกษา โปรดลองอีกครั้ง";
@@ -1565,15 +1734,15 @@
                 return;
             }
 
-            preRegisteredStudentsData = []; // Clear previous data
+            preRegisteredStudentsData = []; 
             try {
                 showLoading(true);
                 const preRegCollectionRef = collection(db, `artifacts/${appId}/public/data/preRegisteredStudentIds`);
                 const querySnapshot = await getDocs(preRegCollectionRef);
                 querySnapshot.forEach(docSnap => {
-                    preRegisteredStudentsData.push(docSnap.id); // Store just the ID
+                    preRegisteredStudentsData.push(docSnap.id); 
                 });
-                preRegisteredStudentsData.sort(); // Sort alphabetically for display
+                preRegisteredStudentsData.sort(); 
             } catch (e) {
                 console.error("Error fetching pre-registered IDs:", e);
                 showError("เกิดข้อผิดพลาดในการดึงรายชื่อนักศึกษาล่วงหน้า");
@@ -1586,25 +1755,25 @@
          * Renders the pre-registered student IDs into the table in the view modal.
          */
         function renderPreRegisteredIdsTable() {
-            preRegisteredIdsTableBody.innerHTML = ''; // Clear existing rows
-            selectedPreRegIdsForDeletion.clear(); // Clear selections
-            selectAllPreRegIdsCheckbox.checked = false; // Uncheck select-all
-            updateDeleteSelectedButtonState(); // Update button state
+            preRegisteredIdsTableBody.innerHTML = ''; 
+            selectedPreRegIdsForDeletion.clear(); 
+            selectAllPreRegIdsCheckbox.checked = false; 
+            updateDeleteSelectedButtonState(); 
 
             totalPreRegisteredStudentsSpan.textContent = preRegisteredStudentsData.length;
 
             if (preRegisteredStudentsData.length === 0) {
                 noPreRegDataMessagePreReg.classList.remove('hidden');
-                preRegisteredIdsTableContainer.classList.add('hidden'); // Hide table container if no data
+                preRegisteredIdsTableContainer.classList.add('hidden'); 
                 return;
             } else {
                 noPreRegDataMessagePreReg.classList.add('hidden');
-                preRegisteredIdsTableContainer.classList.remove('hidden'); // Show table container
+                preRegisteredIdsTableContainer.classList.remove('hidden'); 
             }
 
             preRegisteredStudentsData.forEach(id => {
                 const row = preRegisteredIdsTableBody.insertRow();
-                row.dataset.studentId = id; // Store ID on the row for easy access
+                row.dataset.studentId = id; 
 
                 // Checkbox cell
                 const checkboxCell = row.insertCell();
@@ -1618,7 +1787,7 @@
                 // Student ID cell
                 const idCell = row.insertCell();
                 idCell.textContent = id;
-                idCell.dataset.originalId = id; // Store original ID for edit
+                idCell.dataset.originalId = id; 
 
                 // Actions cell
                 const actionsCell = row.insertCell();
@@ -1636,8 +1805,8 @@
                 deleteButton.title = 'ลบ';
                 deleteButton.addEventListener('click', () => showConfirmationModal(`คุณแน่ใจหรือไม่ที่ต้องการลบรหัสนักศึกษา ${id} นี้?`, async () => {
                     await deletePreRegisteredId(id);
-                    await fetchPreRegisteredIds(); // Re-fetch data after deletion
-                    renderPreRegisteredIdsTable(); // Re-render table
+                    await fetchPreRegisteredIds(); 
+                    renderPreRegisteredIdsTable(); 
                     showMessage(`ลบนักศึกษา ${id} สำเร็จ`);
                 }));
 
@@ -1652,14 +1821,14 @@
          * @param {string} originalId The original student ID of the row.
          */
         function enableInlineEdit(row, originalId) {
-            const idCell = row.cells[1]; // Student ID is the second cell (index 1)
-            const actionsCell = row.cells[2]; // Actions are in the third cell (index 2)
+            const idCell = row.cells[1]; 
+            const actionsCell = row.cells[2]; 
 
-            const originalTextContent = idCell.textContent; // Store current text for cancel
+            const originalTextContent = idCell.textContent; 
 
             // Create input field
             const inputField = document.createElement('input');
-            inputField.type = 'number'; // Student IDs are numbers
+            inputField.type = 'number'; 
             inputField.value = originalTextContent;
             inputField.className = 'edit-input';
             inputField.maxLength = 10;
@@ -1676,7 +1845,7 @@
                     showPreRegSaveErrorModal("รหัสนักศึกษาใหม่ไม่ถูกต้อง (ต้องเป็นตัวเลข 10 หลัก)");
                     return;
                 }
-                if (newId === originalId) { // No change
+                if (newId === originalId) { 
                     disableInlineEdit(row, originalId);
                     return;
                 }
@@ -1690,8 +1859,8 @@
 
                 showConfirmationModal(`คุณแน่ใจหรือไม่ที่ต้องการเปลี่ยนรหัสนักศึกษา ${originalId} เป็น ${newId}?`, async () => {
                     await updatePreRegisteredId(originalId, newId);
-                    await fetchPreRegisteredIds(); // Re-fetch data to update table
-                    renderPreRegisteredIdsTable(); // Re-render table
+                    await fetchPreRegisteredIds(); 
+                    renderPreRegisteredIdsTable(); 
                     showMessage(`แก้ไขรหัสนักศึกษา ${originalId} เป็น ${newId} สำเร็จ`);
                 });
             });
@@ -1710,7 +1879,7 @@
             actionsCell.appendChild(saveButton);
             actionsCell.appendChild(cancelButton);
 
-            inputField.focus(); // Focus on the input field
+            inputField.focus(); 
         }
 
         /**
@@ -1722,7 +1891,7 @@
             const idCell = row.cells[1];
             const actionsCell = row.cells[2];
 
-            idCell.textContent = studentId; // Restore original ID text
+            idCell.textContent = studentId; 
 
             // Restore original buttons
             actionsCell.innerHTML = '';
@@ -1764,20 +1933,19 @@
 
                 // Create new document
                 const newDocRef = doc(preRegCollectionRef, newId);
-                batch.set(newDocRef, { exists: true, addedBy: currentUserId, timestamp: serverTimestamp(), updatedFrom: oldId }); // Add updatedFrom for tracking
+                batch.set(newDocRef, { exists: true, addedBy: currentUserId, timestamp: serverTimestamp(), updatedFrom: oldId }); 
 
                 await batch.commit();
             } catch (e) {
                 console.error("Error updating pre-registered ID:", e);
-                // Provide more specific error message from Firebase if available
                 let errorMessage = "เกิดข้อผิดพลาดในการแก้ไขรายชื่อนักศึกษา โปรดลองอีกครั้ง";
                 if (e.code && e.message) {
                     errorMessage = `เกิดข้อผิดพลาดจาก Firebase: ${e.code} - ${e.message}`;
                 } else if (e.message) {
                     errorMessage = `เกิดข้อผิดพลาด: ${e.message}`;
                 }
-                showPreRegSaveErrorModal(errorMessage); // Using the same modal for all pre-reg errors
-                throw e; // Re-throw to be caught by calling function
+                showPreRegSaveErrorModal(errorMessage);
+                throw e; 
             } finally {
                 showLoading(false);
             }
@@ -1821,10 +1989,11 @@
                 await batch.commit();
 
                 showMessage(`ลบนักศึกษาที่เลือกจำนวน ${idsToDelete.size} รายการสำเร็จ`);
-                selectedPreRegIdsForDeletion.clear(); // Clear selections
-                await fetchPreRegisteredIds(); // Re-fetch and re-render table
+                selectedPreRegIdsForDeletion.clear(); 
+                await fetchPreRegisteredIds(); 
                 renderPreRegisteredIdsTable();
-            } catch (e) {
+            }
+            catch (e) {
                 console.error("Error deleting selected pre-registered IDs:", e);
                 showError("เกิดข้อผิดพลาดในการลบรายชื่อนักศึกษาที่เลือก");
             } finally {
@@ -1847,21 +2016,20 @@
 
         // Event listener for Question Mark button (opens/closes admin password panel or toggles admin action buttons)
         toggleAdminPanelButton.addEventListener('click', () => {
-            hideMessages(); // Clear other messages
-            if (adminPanelContainer.style.display === 'flex') { // If admin password panel is visible
-                hideAdminPanel(); // Hide it
-                // If admin was logged in, clicking the question mark again should hide the action buttons
+            hideMessages(); 
+            if (adminPanelContainer.style.display === 'flex') { 
+                hideAdminPanel(); 
                 if (isAdminLoggedIn) {
                     toggleAdminActionButtons(false);
-                    hideDailyReport(); // Also hide the report and queue info if admin buttons are toggled off
+                    hideDailyReport(); 
                 }
-            } else { // If admin password panel is hidden
-                if (isAdminLoggedIn) { // If admin is already logged in, just toggle action buttons visibility
+            } else { 
+                if (isAdminLoggedIn) { 
                     toggleAdminActionButtons(
-                        !document.getElementById('fixedExportButtonContainer').style.display || // If display is empty or 'none'
+                        !document.getElementById('fixedExportButtonContainer').style.display || 
                         document.getElementById('fixedExportButtonContainer').style.display === 'none'
                     );
-                } else { // If not logged in, show the password panel
+                } else { 
                     showAdminPanel();
                 }
             }
@@ -1879,21 +2047,20 @@
                 const enteredPassword = adminPasswordInput.value;
                 if (enteredPassword === ADMIN_PASSWORD && authReady) {
                     isAdminLoggedIn = true;
-                    hideAdminPanel(); // Hide the password input panel
-                    toggleAdminActionButtons(true); // Show Export, Import, View/Manage, Reset buttons
+                    hideAdminPanel(); 
+                    toggleAdminActionButtons(true); 
                     
-                    // Show admin login status message
                     adminLoginStatusMessage.textContent = "เข้าสู่ระบบผู้ดูแลระบบสำเร็จ";
                     adminLoginStatusMessage.classList.add('visible');
                     setTimeout(() => {
                         adminLoginStatusMessage.classList.remove('visible');
                         adminLoginStatusMessage.textContent = '';
-                    }, 3000); // Hide after 3 seconds
+                    }, 3000); 
                 } else {
                     showPasswordError("Passphrase ไม่ถูกต้อง");
                     isAdminLoggedIn = false;
-                    toggleAdminActionButtons(false); // Ensure buttons are hidden on failed login
-                    hideDailyReport(); // Hide report and queue info if login fails
+                    toggleAdminActionButtons(false); 
+                    hideDailyReport(); 
                 }
                 event.preventDefault();
             }
@@ -1901,91 +2068,98 @@
 
         // Handle click on the Export Button
         toggleExportReportButton.addEventListener('click', async () => {
-            hideMessages(); // Clear any previous messages
-            if (isAdminLoggedIn) { // Check if admin session is active
+            hideMessages(); 
+            if (isAdminLoggedIn) { 
                 showLoading(true);
-                // Ensure data is fresh before export, especially if not displayed on screen
-                await refreshAndDisplayRegistrationReport(); // This will fetch and populate currentRegistrationsData and highestQueueNumberDisplay
-                showLoading(false); // Hide loading after fetch
                 exportRegistrationReportToCsv();
-                hideDailyReport(); // Hide the table and queue info after export as per requirement
+                showLoading(false); 
             } else {
-                showAdminPanel(); // Show panel to prompt for password
-                showPasswordError("กรุณากรอก Passphrase ก่อน"); // Prompt message
+                showAdminPanel(); 
+                showPasswordError("กรุณากรอก Passphrase ก่อน"); 
             }
         });
 
         // Handle click on the Import Button (New)
         toggleImportIdsButton.addEventListener('click', () => {
-            hideMessages(); // Clear any previous messages
-            if (isAdminLoggedIn) { // Check if admin session is active
-                hideDailyReport(); // Hide daily report and queue info if other admin function is opened
-                showImportStudentIdsModal(); // Show the new import modal
+            hideMessages(); 
+            if (isAdminLoggedIn) { 
+                hideDailyReport(); 
+                showImportStudentIdsModal(); 
             } else {
-                showAdminPanel(); // Show panel to prompt for password
-                showPasswordError("กรุณากรอก Passphrase ก่อน"); // Prompt message
+                showAdminPanel(); 
+                showPasswordError("กรุณากรอก Passphrase ก่อน"); 
             }
         });
 
         // Handle click on the View/Manage Pre-registered Button (New)
         toggleViewPreRegButton.addEventListener('click', () => {
-            hideMessages(); // Clear any previous messages
-            if (isAdminLoggedIn) { // Check if admin session is active
-                hideDailyReport(); // Hide daily report and queue info if other admin function is opened
-                showViewPreRegisteredIdsModal(); // Show the new view/manage modal
+            hideMessages(); 
+            if (isAdminLoggedIn) { 
+                hideDailyReport(); 
+                showViewPreRegisteredIdsModal(); 
             } else {
-                showAdminPanel(); // Show panel to prompt for password
-                showPasswordError("กรุณากรอก Passphrase ก่อน"); // Prompt message
+                showAdminPanel(); 
+                showPasswordError("กรุณากรอก Passphrase ก่อน"); 
             }
         });
 
         // Handle click on the Daily Report Button (New)
         toggleDailyReportButton.addEventListener('click', () => {
-            hideMessages(); // Clear any previous messages
-            if (isAdminLoggedIn) { // Check if admin session is active
-                if (reportSection.style.display === 'block') { // If report is currently visible
-                    hideDailyReport(); // Hide it
+            hideMessages(); 
+            if (isAdminLoggedIn) { 
+                if (reportSection.style.display === 'block') { 
+                    hideDailyReport(); 
                 } else {
-                    hideImportStudentIdsModal(); // Hide other admin modals
-                    hideViewPreRegisteredIdsModal(); // Hide other admin modals
-                    refreshAndDisplayRegistrationReport(); // Fetch and show the daily report and queue info
+                    hideImportStudentIdsModal(); 
+                    hideViewPreRegisteredIdsModal(); 
+                    refreshAndDisplayRegistrationReport(currentActiveSessionId); 
                 }
             } else {
-                showAdminPanel(); // Show panel to prompt for password
-                showPasswordError("กรุณากรอก Passphrase ก่อน"); // Prompt message
+                showAdminPanel(); 
+                showPasswordError("กรุณากรอก Passphrase ก่อน"); 
             }
         });
 
         // Handle click on the Close Daily Report Button
         closeDailyReportButton.addEventListener('click', hideDailyReport);
 
+        // Handle dropdown selection change
+        sessionSelect.addEventListener('change', () => {
+            const selectedSessionId = sessionSelect.value;
+            // Only refresh if the selected session is different from what's currently displayed
+            // or if there's no data currently displayed (e.g., first time opening report)
+            if (selectedSessionId !== currentActiveSessionId || currentRegistrationsData.length === 0) {
+                 refreshAndDisplayRegistrationReport(selectedSessionId);
+            }
+        });
 
-        // Handle click on the Reset Queue Button
+        // Handle click on "แสดงรายงาน" button
+        viewSelectedReportButton.addEventListener('click', () => {
+            const selectedSessionId = sessionSelect.value;
+            refreshAndDisplayRegistrationReport(selectedSessionId);
+        });
+
+        // Handle click on the Reset Queue Button (now ends session and starts new)
         resetQueueButton.addEventListener('click', () => {
             if (!authReady) {
                 showError("ระบบยังไม่พร้อม โปรดรอสักครู่และลองอีกครั้ง");
                 return;
             }
-            hideMessages(); // Clear any previous messages
-            if (isAdminLoggedIn) { // Check if admin session is active
-                showConfirmationModal("คุณแน่ใจหรือไม่ที่ต้องการรีเซ็ตคิวทั้งหมดสำหรับวันนี้? ข้อมูลจะถูก Export ก่อนลบ", async () => {
-                    const exported = exportRegistrationReportToCsv(); // Try to export
-                    if (exported) { // Only proceed with delete if export was successful
-                        await resetAllQueuesToday();
-                    } else {
-                        showError("ไม่สามารถส่งออกข้อมูลได้ จึงไม่ทำการรีเซ็ตคิว"); // Inform user if export failed
-                    }
-                    hideDailyReport(); // Always hide the report section and queue info after reset attempt
+            hideMessages(); 
+            if (isAdminLoggedIn) { 
+                showConfirmationModal("คุณแน่ใจหรือไม่ที่ต้องการเริ่มต้นรอบคิวใหม่? ข้อมูลรอบเก่าจะถูกบันทึกและไม่สามารถแก้ไขได้", async () => {
+                    await endCurrentSessionAndStartNew();
+                    hideDailyReport(); 
                 });
             } else {
-                showAdminPanel(); // Show panel to prompt for password
-                showPasswordError("กรุณากรอก Passphrase ก่อน"); // Prompt message
+                showAdminPanel(); 
+                showPasswordError("กรุณากรอก Passphrase ก่อน"); 
             }
         });
 
         // Add an event listener to the password input itself to hide the error when user types
         adminPasswordInput.addEventListener('input', () => {
-            passwordErrorDisplay.classList.add('hidden'); // Hide error when user starts typing
+            passwordErrorDisplay.classList.add('hidden'); 
         });
 
         // Import Modal Button Listeners
@@ -2014,7 +2188,7 @@
             if (selectedPreRegIdsForDeletion.size > 0) {
                 showConfirmationModal(`คุณแน่ใจหรือไม่ที่ต้องการลบนักศึกษาที่เลือกจำนวน ${selectedPreRegIdsForDeletion.size} รายการ?`, async () => {
                     await deleteSelectedPreRegisteredIds(selectedPreRegIdsForDeletion);
-                    hideViewPreRegisteredIdsModal(); // Hide modal after deletion
+                    hideViewPreRegisteredIdsModal(); 
                 });
             } else {
                 showMessage("โปรดเลือกรหัสนักศึกษาที่ต้องการลบก่อน");
