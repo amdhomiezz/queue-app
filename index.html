@@ -1674,9 +1674,9 @@
                 if (currentActiveSessionId) {
                     const currentOption = document.createElement('option');
                     currentOption.value = currentActiveSessionId;
-                    // Current session displays today's date
                     const today = new Date();
-                    currentOption.textContent = `รอบปัจจุบัน (${today.toLocaleString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' })})`; // Using year: 'numeric' which should be Buddhist year in th-TH locale
+                    // Format current session to "รอบปัจจุบัน (วันเดือนปี เวลา)"
+                    currentOption.textContent = `รอบปัจจุบัน (${today.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' })} ${today.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.)`; 
                     sessionSelect.appendChild(currentOption);
                 }
 
@@ -2315,3 +2315,4 @@
     </script>
 </body>
 </html>
+
