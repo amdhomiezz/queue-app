@@ -442,7 +442,7 @@
             background-color: #f8f8f8;
             font-weight: 600;
         }
-        #preRegisteredIdsTable tbody tr:nth-child(even) {
+        .report-table tbody tr:nth-child(even) {
             background-color: #f9f9f9;
         }
         .report-table tbody tr:hover {
@@ -809,10 +809,11 @@
         const cancelActionButton = document.getElementById('cancelActionButton');
 
 
-        // Admin UID (This is specific to your admin user created in Firebase Authentication)
-        // IMPORTANT: REPLACE THIS WITH YOUR ACTUAL ADMIN USER'S UID FROM FIREBASE AUTHENTICATION
-        // You can find this in your Firebase Console -> Authentication -> Users.
-        const ADMIN_UID = 'YOUR_ACTUAL_ADMIN_UID_HERE'; 
+        // Admin UIDs (This is specific to your admin users created in Firebase Authentication)
+        // สำคัญ: คุณต้องแทนที่ค่าใน Array นี้ด้วย UID จริงของผู้ดูแลระบบของคุณ
+        // คุณสามารถหาได้จาก Firebase Console -> Authentication -> Users.
+        // หากมีผู้ดูแลระบบหลายคน สามารถเพิ่ม UID ลงใน Array ได้เลย
+        const ADMIN_UIDS = ['YOUR_ADMIN_UID_1_HERE', 'YOUR_ADMIN_UID_2_HERE']; // ตัวอย่าง: ['QKFKsEKLdbVD52gLfNGmZFEGdN23', '6dK9K6GU0QYdpk8zuh8UTFeOTk63'];
 
         let currentUserId = null;
         let authReady = false;
@@ -834,8 +835,8 @@
                 authReady = true;
                 console.log("Firebase authenticated. User ID:", currentUserId);
 
-                // Check if the current authenticated user is the admin
-                if (user.uid === ADMIN_UID) {
+                // Check if the current authenticated user is one of the admins
+                if (ADMIN_UIDS.includes(user.uid)) {
                     isAdminLoggedIn = true;
                     console.log("Admin user recognized.");
                 } else {
@@ -1460,7 +1461,14 @@
                     showError("เกิดข้อผิดพลาดในการลงทะเบียนคิว: มีผู้ใช้ลงทะเบียนพร้อมกัน กรุณาลองอีกครั้ง");
                 }
                 else {
-                    showError("เกิดข้อผิดพลาดในการลงทะเบียนคิว โปรดลองอีกครั้ง");
+                    // Catch-all for other errors, including permission-denied
+                    let specificErrorMessage = "เกิดข้อผิดพลาดในการลงทะเบียนคิว โปรดลองอีกครั้ง";
+                    if (e.code === 'permission-denied') {
+                        specificErrorMessage = "การลงทะเบียนถูกปฏิเสธ: ไม่ได้รับอนุญาตให้แก้ไขคิว โปรดแจ้งผู้ดูแลระบบ";
+                    } else if (e.message) {
+                        specificErrorMessage = `เกิดข้อผิดพลาด: ${e.message}`; // Fallback to raw message if available
+                    }
+                    showError(specificErrorMessage);
                 }
             } finally {
                 showLoading(false);
@@ -2174,7 +2182,8 @@
                     const userCredential = await signInWithEmailAndPassword(auth, adminEmail, adminPassword);
                     const user = userCredential.user;
 
-                    if (user && user.uid === ADMIN_UID) {
+                    // Check if the authenticated user's UID is in the list of ADMIN_UIDS
+                    if (ADMIN_UIDS.includes(user.uid)) {
                         isAdminLoggedIn = true;
                         currentUserId = user.uid; // Update currentUserId to admin's UID
                         hideAdminPanel();
@@ -2188,13 +2197,12 @@
                         }, 3000);
                         console.log("Admin logged in:", user.uid);
                     } else {
-                        // This case would typically not happen if Firebase auth is setup correctly and only admin user exists.
-                        // But it's a safeguard if a non-admin user somehow signs in with email/password.
+                        // If user logs in but is not an ADMIN_UID
                         showPasswordError("คุณไม่มีสิทธิ์ผู้ดูแลระบบ");
                         isAdminLoggedIn = false;
                         toggleAdminActionButtons(false);
                         hideDailyReport();
-                        // Sign out the non-admin user if they successfully logged into Firebase but are not the designated ADMIN_UID
+                        // Sign out the non-admin user if they successfully logged into Firebase but are not a designated ADMIN_UID
                         await signOut(auth); 
                         console.warn("User logged in but not recognized as Admin UID:", user ? user.uid : 'No user');
                     }
